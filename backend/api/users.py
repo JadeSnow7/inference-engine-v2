@@ -2,7 +2,7 @@ import re
 
 from fastapi import APIRouter, HTTPException, Request
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.auth import create_access_token
 from store.redis_store import UserStore
@@ -15,7 +15,7 @@ ALLOWED_DOMAINS = re.compile(r'^[a-zA-Z0-9._%+\-]+@(stu\.)?hust\.edu\.cn$')
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str
+    password: str = Field(min_length=8, max_length=72)
 
 
 class LoginRequest(BaseModel):
@@ -23,7 +23,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@router.post("/auth/register")
+@router.post("/auth/register", status_code=201)
 async def register(req: RegisterRequest, request: Request):
     if not ALLOWED_DOMAINS.match(req.email):
         raise HTTPException(status_code=400, detail="仅限 HUST 校园邮箱注册（@hust.edu.cn 或 @stu.hust.edu.cn）")
