@@ -34,3 +34,21 @@ class RedisProfileStore:
     async def set(self, user_id: str, profile: UserProfile):
         payload = profile.to_dict() if hasattr(profile, "to_dict") else dict(profile)
         await self.client.set(f"profile:{user_id}", json.dumps(payload, ensure_ascii=False))
+
+
+class UserStore:
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _key(email: str) -> str:
+        return f"users:{email}"
+
+    async def exists(self, email: str) -> bool:
+        return bool(await self.client.exists(self._key(email)))
+
+    async def create(self, email: str, password_hash: str) -> None:
+        await self.client.hset(self._key(email), mapping={"password_hash": password_hash})
+
+    async def get_hash(self, email: str) -> Optional[str]:
+        return await self.client.hget(self._key(email), "password_hash")

@@ -7,11 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
 
 from api.chat import router as chat_router
+from api.users import router as users_router
 from config import settings
 from conversation.manager import ConversationManager
 from rag.graph import KnowledgeGraph, build_demo_graph
 from rag.retriever import GraphRAGRetriever
-from store.redis_store import RedisConversationStore, RedisProfileStore
+from store.redis_store import RedisConversationStore, RedisProfileStore, UserStore
 
 
 @asynccontextmanager
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     app.state.rag = GraphRAGRetriever(kg, embedder)
     app.state.conv_manager = ConversationManager(RedisConversationStore(redis_client))
     app.state.profile_store = RedisProfileStore(redis_client)
+    app.state.user_store = UserStore(redis_client)
     try:
         yield
     finally:
@@ -45,6 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI写作辅助平台", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(chat_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
 
 
 if __name__ == "__main__":
