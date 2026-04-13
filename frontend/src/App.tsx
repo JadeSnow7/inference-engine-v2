@@ -1,10 +1,22 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ProtectedRoute } from './components/layout/ProtectedRoute'
+import LoginPage from './pages/LoginPage'
+import ChatPage from './pages/ChatPage'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="*" element={<div className="p-8 text-gray-500">scaffold ok</div>} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
