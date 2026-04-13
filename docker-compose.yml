@@ -1,0 +1,28 @@
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      HF_HOME: /app/data/.cache/huggingface
+    depends_on:
+      - redis
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
