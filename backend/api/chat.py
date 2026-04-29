@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from api.auth import get_current_user_id
+from api.responses import ok
 from core.loop import main_loop
 from profile.models import from_survey
 
@@ -11,6 +13,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
 
 
 class ProfileInitRequest(BaseModel):
@@ -23,13 +26,15 @@ class ProfileInitRequest(BaseModel):
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     app_state = request.app.state
+    session_id = await app_state.conv_manager.ensure_session(user_id, req.session_id, req.message)
     return StreamingResponse(
-        main_loop(user_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag),
+        main_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Access-Control-Allow-Origin": "*",
+            "X-Session-Id": session_id,
         },
     )
 
@@ -37,5 +42,60 @@ async def chat(req: ChatRequest, request: Request, user_id: str = Depends(get_cu
 @router.post("/profile/init")
 async def init_profile(req: ProfileInitRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     await request.app.state.profile_store.set(user_id, from_survey(req.q13, req.q14, req.q9, req.q5))
-    return {"ok": True}
+    return ok({"initialized": True})
+
+
+@router.get("/sessions")
+async def list_sessions(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user_id: str = Depends(get_current_user_id),
+):
+    return ok(await request.app.state.conv_manager.list_sessions(user_id, limit=limit, offset=offset))
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, request: Request, user_id: str = Depends(get_current_user_id)):
+    deleted = await request.app.state.conv_manager.delete_session(user_id, session_id)
+    return ok({"deleted": deleted})
+
+
+@router.get("/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str, request: Request, user_id: str = Depends(get_current_user_id)):
+    """Return the full message history for a session (user + assistant turns)."""
+    history = await request.app.state.conv_manager.load(user_id, session_id)
+    return ok({"messages": history})
+
+
+@router.get("/sessions/{session_id}/artifact")
+async def get_session_artifact(session_id: str, request: Request, user_id: str = Depends(get_current_user_id)):
+    """Return saved pipeline artefacts (papers, gaps, final_outline) for sidebar restoration."""
+    store = request.app.state.conv_manager._store
+    if hasattr(store, "get_session_artifact"):
+        artifact = await store.get_session_artifact(user_id, session_id)
+    else:
+        artifact = {}
+    return ok(artifact)
+
+
+@router.get("/profile/me")
+async def get_profile(request: Request, user_id: str = Depends(get_current_user_id)):
+    """Return the current user profile dict."""
+    profile = await request.app.state.profile_store.get(user_id)
+    return ok(profile or {})
+
+
+@router.patch("/profile/me")
+async def patch_profile(request: Request, user_id: str = Depends(get_current_user_id)):
+    """Update subset of profile fields (teaching_style, feedback_verbosity)."""
+    body = await request.json()
+    profile = await request.app.state.profile_store.get(user_id) or {}
+    allowed = {"teaching_style", "feedback_verbosity"}
+    for k, v in body.items():
+        if k in allowed:
+            profile[k] = v
+    from profile.models import UserProfile
+    await request.app.state.profile_store.set(user_id, UserProfile.from_dict(profile))
+    return ok({"updated": True})
 

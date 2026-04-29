@@ -98,3 +98,60 @@ class GraphRAGRetriever:
                 papers.append({"paper_id": pred, "title": attrs["title"], "year": attrs["year"]})
         return sorted(papers, key=lambda item: item["year"])
 
+    def iterative_gap_discovery(
+        self,
+        query: str,
+        domain: str,
+        max_rounds: int = 3,
+        new_node_threshold: int = 2,
+        top_papers: int = 8,
+        top_gaps: int = 5,
+    ):
+        """Iterative graph walk that expands retrieval across multiple rounds.
+
+        Each round:
+          1. Retrieves papers and gaps with the current query embedding.
+          2. Identifies newly discovered concept neighbours not seen before.
+          3. Builds a synthetic query from those concepts for the next round.
+          4. Exits early when fewer than *new_node_threshold* new nodes found.
+
+        Yields tuples: (round_number: int, papers: list[dict], gaps: list[dict])
+
+        The caller (pipeline) should emit a stage SSE event before each round
+        showing the round number, then emit papers/gaps events after.
+        """
+        seen_concepts: set = set()
+        current_query = query
+
+        for round_num in range(1, max_rounds + 1):
+            papers = self.retrieve_literature(current_query, top_papers)
+            gaps = self.discover_research_gaps(domain, current_query, top_gaps)
+
+            yield (round_num, papers, gaps)
+
+            # Collect concept neighbours of retrieved papers
+            new_concepts: list[str] = []
+            for paper in papers:
+                paper_id = paper.get("id")
+                if paper_id is None:
+                    continue
+                for neighbour in self.g.predecessors(paper_id):
+                    if (
+                        self.g.nodes[neighbour].get("type") == NodeType.CONCEPT.value
+                        and neighbour not in seen_concepts
+                    ):
+                        new_concepts.append(neighbour)
+                        seen_concepts.add(neighbour)
+
+            if len(new_concepts) < new_node_threshold:
+                # Not enough new territory — stop expanding
+                break
+
+            # Build next-round query from new concept labels
+            concept_labels = [
+                str(self.g.nodes[nid].get("name", nid))
+                for nid in new_concepts[:5]
+            ]
+            current_query = " ".join(concept_labels)
+
+

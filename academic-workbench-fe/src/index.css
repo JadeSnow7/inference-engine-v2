@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* 
+  Scholar Script Design System
+  定制化中性学术风，强调专业与知识感 
+*/
+@theme {
+  --color-scholar-bg-canvas: #f5f6f7; /* 学术浅灰色大背板，缓解视觉疲劳 */
+  --color-scholar-bg-surface: #ffffff; /* 卡片/面板面层 */
+  
+  --color-scholar-primary: #3370ff; /* 飞书蓝，主操作项 */
+  --color-scholar-primary-hover: #2b5fc2; 
+  
+  --color-scholar-academic: #164082; /* 深靛蓝（学术底色），用于学术模式高光 */
+  --color-scholar-code: #0f6c44; /* 冷绿色，用于代码模式 */
+  --color-scholar-discovery: #7b2cbf; /* 灵感紫，用于图谱和发现 */
+
+  --color-scholar-text-primary: #1f2329; /* 正文高对比度文字 */
+  --color-scholar-text-secondary: #646a73; /* 辅助文字与元数据 */
+  --color-scholar-text-weak: #8f959e; /* 极弱文本 */
+
+  --color-scholar-border: #dee0e3; /* 柔和边框，划定结构但不喧宾夺主 */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-scholar-bg-canvas);
+    color: var(--color-scholar-text-primary);
+    -webkit-font-smoothing: antialiased;
+    /* 采用高可读性系统级字体 */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+}

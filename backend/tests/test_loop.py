@@ -9,13 +9,15 @@ from core.events import EventType, SSEEvent, fmt
 
 class FakeConversationManager:
     def __init__(self) -> None:
-        self.saved: list[tuple[str, str, str]] = []
+        self.loaded: list[tuple[str, str]] = []
+        self.saved: list[tuple[str, str, str, str, str, str]] = []
 
-    async def load(self, user_id: str):
+    async def load(self, user_id: str, session_id: str):
+        self.loaded.append((user_id, session_id))
         return [{"role": "user", "content": "旧问题"}, {"role": "assistant", "content": "旧回答"}]
 
-    async def save(self, user_id: str, user_msg: str, assistant_msg: str):
-        self.saved.append((user_id, user_msg, assistant_msg))
+    async def save(self, user_id: str, session_id: str, user_msg: str, assistant_msg: str, scene: str):
+        self.saved.append((user_id, session_id, user_msg, assistant_msg, scene, "saved"))
 
 
 class FakeProfileStore:
@@ -43,14 +45,15 @@ class LoopSmokeTest(unittest.IsolatedAsyncioTestCase):
         loop_module._get_pipeline_handler = lambda scene: fake_pipeline
         try:
             chunks = []
-            async for chunk in loop_module.main_loop("u1", "测试消息", conv, profile_store, object()):
+            async for chunk in loop_module.main_loop("u1", "sess-1", "测试消息", conv, profile_store, object()):
                 chunks.append(chunk)
         finally:
             loop_module.route_scene = original_router
             loop_module._get_pipeline_handler = original_paragraph
 
         self.assertTrue(any('"type": "done"' in chunk for chunk in chunks))
-        self.assertEqual(conv.saved, [("u1", "测试消息", "第一段第二段")])
+        self.assertEqual(conv.loaded, [("u1", "sess-1")])
+        self.assertEqual(conv.saved, [("u1", "sess-1", "测试消息", "第一段第二段", "paragraph", "saved")])
 
     async def test_main_loop_emits_error_and_skips_save_on_exception(self) -> None:
         from core import loop as loop_module
@@ -71,7 +74,7 @@ class LoopSmokeTest(unittest.IsolatedAsyncioTestCase):
         loop_module._get_pipeline_handler = lambda scene: broken_pipeline
         try:
             chunks = []
-            async for chunk in loop_module.main_loop("u2", "测试消息", conv, profile_store, object()):
+            async for chunk in loop_module.main_loop("u2", "sess-2", "测试消息", conv, profile_store, object()):
                 chunks.append(chunk)
         finally:
             loop_module.route_scene = original_router

@@ -1,3 +1,4 @@
+import { useUserStore } from '../store/user'
 import type { PaperItem, GapItem, SSEEvent } from '../types/events'
 
 export interface SSEController {
@@ -5,19 +6,27 @@ export interface SSEController {
 }
 
 export interface SSEHandlers {
-  onStage: (stage: string) => void
+  onSessionId?: (sessionId: string) => void
+  onStage:  (stage: string)       => void
   onPapers: (papers: PaperItem[]) => void
-  onGaps: (gaps: GapItem[]) => void
-  onToken: (token: string) => void
-  onDone: () => void
-  onError: (msg: string) => void
+  onGaps:   (gaps: GapItem[])     => void
+  onToken:  (token: string)       => void
+  onDone:   ()                    => void
+  onError:  (msg: string)         => void
 }
 
 const BASE_URL = import.meta.env.VITE_API_BASE ?? ''
 
-export function connectSSE(message: string, handlers: SSEHandlers): SSEController {
+export function connectSSE(
+  message: string,
+  handlers: SSEHandlers,
+  sessionId?: string,
+): SSEController {
   const controller = new AbortController()
-  const token = localStorage.getItem('edu_token')
+  const token = useUserStore.getState().token
+
+  const body: Record<string, string> = { message }
+  if (sessionId) body.session_id = sessionId
 
   fetch(`${BASE_URL}/api/chat`, {
     method: 'POST',
@@ -25,14 +34,25 @@ export function connectSSE(message: string, handlers: SSEHandlers): SSEControlle
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
     signal: controller.signal,
   })
     .then(async (res) => {
-      if (!res.body) return
+      if (!res.body) {
+        handlers.onError('服务未返回数据流')
+        return
+      }
+      if (!res.ok) {
+        handlers.onError(`连接失败 (${res.status})`)
+        return
+      }
+      const resolvedSessionId = res.headers.get('X-Session-Id')
+      if (resolvedSessionId) {
+        handlers.onSessionId?.(resolvedSessionId)
+      }
 
       const reader = res.body.getReader()
-      // Constraint A: stream-mode TextDecoder prevents multi-byte Chinese split
+      // stream: true 防止多字节中文被截断
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
 
@@ -52,7 +72,7 @@ export function connectSSE(message: string, handlers: SSEHandlers): SSEControlle
               const event = JSON.parse(raw.slice(6)) as SSEEvent
               handleEvent(event, handlers)
             } catch {
-              // Constraint A: silently skip malformed frames
+              // 忽略格式错误的帧
             }
           }
 

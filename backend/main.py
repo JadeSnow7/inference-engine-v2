@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
 
 from api.chat import router as chat_router
+from api.responses import register_error_handlers
 from api.users import router as users_router
 from config import settings
 from conversation.manager import ConversationManager
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI写作辅助平台", version="1.0.0", lifespan=lifespan)
+register_error_handlers(app)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(chat_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
