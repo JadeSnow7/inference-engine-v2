@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     MAX_HISTORY_TOKENS: int = 6000
     EMBED_MODEL: str = "BAAI/bge-small-zh-v1.5"
     GRAPH_PERSIST_PATH: str = "data/knowledge_graph.gpickle"
+    CORS_ORIGINS: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -34,8 +35,13 @@ class Settings(BaseSettings):
             self.MAX_HISTORY_TOKENS = int(os.getenv("MAX_HISTORY_TOKENS", str(self.MAX_HISTORY_TOKENS)))
             self.EMBED_MODEL = os.getenv("EMBED_MODEL", self.EMBED_MODEL)
             self.GRAPH_PERSIST_PATH = os.getenv("GRAPH_PERSIST_PATH", self.GRAPH_PERSIST_PATH)
+            self.CORS_ORIGINS = os.getenv("CORS_ORIGINS", self.CORS_ORIGINS)
         else:
             super().__init__()
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 settings = Settings()

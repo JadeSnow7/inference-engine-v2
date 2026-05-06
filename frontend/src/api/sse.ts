@@ -38,14 +38,14 @@ export function connectSSE(
     signal: controller.signal,
   })
     .then(async (res) => {
-      if (!res.body) {
-        handlers.onError('服务未返回数据流')
-        return
-      }
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         const msg = body?.error?.message ?? `连接失败 (${res.status})`
         handlers.onError(msg)
+        return
+      }
+      if (!res.body) {
+        handlers.onError('服务未返回数据流')
         return
       }
       const resolvedSessionId = res.headers.get('X-Session-Id')

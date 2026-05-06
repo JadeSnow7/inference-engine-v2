@@ -170,4 +170,30 @@ describe('connectSSE', () => {
     const [, init] = fetchMock.mock.calls[0]
     expect(init.body).toBe(JSON.stringify({ message: '继续', session_id: 'sess-1' }))
   })
+
+  it('prefers backend envelope error message for non-2xx response', async () => {
+    const onError = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: { code: 'AUTH_INVALID_TOKEN', message: '登录凭证无效' } }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+
+    connectSSE('测试', {
+      onStage: vi.fn(),
+      onPapers: vi.fn(),
+      onGaps: vi.fn(),
+      onToken: vi.fn(),
+      onDone: vi.fn(),
+      onError,
+    })
+
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith('登录凭证无效')
+    })
+  })
 })

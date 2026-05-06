@@ -47,7 +47,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI写作辅助平台", version="1.0.0", lifespan=lifespan)
 register_error_handlers(app)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(chat_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 
