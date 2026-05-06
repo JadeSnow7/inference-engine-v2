@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
 from api.auth import create_access_token
+from api.responses import ok
 from store.redis_store import UserStore
 
 router = APIRouter()
@@ -26,12 +27,15 @@ class LoginRequest(BaseModel):
 @router.post("/auth/register", status_code=201)
 async def register(req: RegisterRequest, request: Request):
     if not ALLOWED_DOMAINS.match(req.email):
-        raise HTTPException(status_code=400, detail="仅限 HUST 校园邮箱注册（@hust.edu.cn 或 @stu.hust.edu.cn）")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "AUTH_INVALID_EMAIL_DOMAIN", "message": "仅限 HUST 校园邮箱注册（@hust.edu.cn 或 @stu.hust.edu.cn）"},
+        )
     store: UserStore = request.app.state.user_store
     if await store.exists(req.email):
-        raise HTTPException(status_code=409, detail="邮箱已注册")
+        raise HTTPException(status_code=409, detail={"code": "AUTH_EMAIL_EXISTS", "message": "邮箱已注册"})
     await store.create(req.email, pwd_context.hash(req.password))
-    return {"ok": True}
+    return ok({"registered": True}, status_code=201)
 
 
 @router.post("/auth/login")
@@ -39,5 +43,5 @@ async def login(req: LoginRequest, request: Request):
     store: UserStore = request.app.state.user_store
     hash_ = await store.get_hash(req.email)
     if not hash_ or not pwd_context.verify(req.password, hash_):
-        raise HTTPException(status_code=401, detail="邮箱或密码错误")
-    return {"token": create_access_token(req.email)}
+        raise HTTPException(status_code=401, detail={"code": "AUTH_INVALID_CREDENTIALS", "message": "邮箱或密码错误"})
+    return ok({"token": create_access_token(req.email)})

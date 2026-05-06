@@ -30,11 +30,13 @@ from fastapi import FastAPI
 from api.users import router as users_router
 from unittest.mock import AsyncMock, MagicMock, patch
 import bcrypt as _bcrypt
+from api.responses import register_error_handlers
 
 
 def make_test_app(user_store):
     """Create a minimal FastAPI app with a mocked user_store in state."""
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(users_router)
     app.state.user_store = user_store
     return app
@@ -65,7 +67,7 @@ class AuthEndpointTest(unittest.TestCase):
             client = TestClient(make_test_app(store))
             res = client.post("/auth/register", json={"email": "alice@hust.edu.cn", "password": "password123"})
         self.assertEqual(res.status_code, 201)
-        self.assertEqual(res.json(), {"ok": True})
+        self.assertEqual(res.json(), {"ok": True, "data": {"registered": True}})
 
     def test_register_invalid_domain_returns_400(self):
         store = self._make_store()
@@ -78,12 +80,15 @@ class AuthEndpointTest(unittest.TestCase):
         client = TestClient(make_test_app(store))
         res = client.post("/auth/register", json={"email": "alice@hust.edu.cn", "password": "password123"})
         self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.json()["ok"], False)
+        self.assertEqual(res.json()["error"]["message"], "邮箱已注册")
 
     def test_register_short_password_returns_422(self):
         store = self._make_store()
         client = TestClient(make_test_app(store))
         res = client.post("/auth/register", json={"email": "alice@hust.edu.cn", "password": "short"})
         self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.json()["error"]["code"], "VALIDATION_ERROR")
 
     def test_login_success_returns_token(self):
         hash_ = _bcrypt_hash("password123")
@@ -92,7 +97,7 @@ class AuthEndpointTest(unittest.TestCase):
             client = TestClient(make_test_app(store))
             res = client.post("/auth/login", json={"email": "alice@hust.edu.cn", "password": "password123"})
         self.assertEqual(res.status_code, 200)
-        self.assertIn("token", res.json())
+        self.assertIn("token", res.json()["data"])
 
     def test_login_wrong_password_returns_401(self):
         hash_ = _bcrypt_hash("correct_password")
@@ -101,12 +106,14 @@ class AuthEndpointTest(unittest.TestCase):
             client = TestClient(make_test_app(store))
             res = client.post("/auth/login", json={"email": "alice@hust.edu.cn", "password": "wrong_password"})
         self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"]["code"], "AUTH_INVALID_CREDENTIALS")
 
     def test_login_unknown_user_returns_401(self):
         store = self._make_store(hash_value=None)
         client = TestClient(make_test_app(store))
         res = client.post("/auth/login", json={"email": "nobody@hust.edu.cn", "password": "password123"})
         self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["error"]["message"], "邮箱或密码错误")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 
 from core.events import EventType, SSEEvent, fmt
 from core.stream import call_model_once, stream_model
+from core.thinking import cfg
 from pipelines.base import format_rag_context
 from profile.inject import inject_user_profile
 from prompts.system import ACADEMIC_SYSTEM_PROMPT
@@ -22,7 +23,8 @@ def _group_by_year(papers: list[dict]) -> list[list[dict]]:
 
 async def _stream_review(user_message: str, history: list[dict], profile: dict, rag) -> AsyncIterator[str]:
     yield fmt(SSEEvent(type=EventType.STAGE, stage="关键词扩展"))
-    raw = await call_model_once([{"role": "user", "content": KEYWORD_PROMPT.format(topic=user_message)}], temperature=0)
+    tc_kw = cfg("intent_parse")  # OFF, temp=0.0
+    raw = await call_model_once([{"role": "user", "content": KEYWORD_PROMPT.format(topic=user_message)}], temperature=tc_kw.temperature)
     try:
         keywords = json.loads(raw).get("keywords", [])
     except Exception:
@@ -52,7 +54,8 @@ async def _stream_review(user_message: str, history: list[dict], profile: dict, 
             *history[-4:],
             {"role": "user", "content": f"基于以下论文写 2-3 句文献综述段落：\n{paper_block}"},
         ]
-        async for token in stream_model(messages, temperature=0.4):
+        tc_write = cfg("outline_gen")  # ON, budget=1500, temp=0.4
+        async for token in stream_model(messages, temperature=tc_write.temperature, thinking=tc_write.thinking, thinking_budget=tc_write.budget):
             generated.append(token)
             yield fmt(SSEEvent(type=EventType.TOKEN, content=token))
 

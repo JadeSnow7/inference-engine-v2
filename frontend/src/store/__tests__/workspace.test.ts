@@ -1,0 +1,495 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useWorkspaceStore } from '../workspace'
+import { aiSuggestion } from '../../mocks/workspaceMock'
+import type { DocumentSuggestion } from '../../types/workspace'
+
+const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
+const WORKBENCH_SNAPSHOT_KEY = 'workbench:workspaceSnapshot:v1'
+
+function installMemoryStorage(options: { throwOnSet?: boolean } = {}) {
+  const values = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      if (options.throwOnSet) throw new Error('quota exceeded')
+      values.set(key, value)
+    },
+    removeItem: (key: string) => values.delete(key),
+  })
+}
+
+describe('useWorkspaceStore', () => {
+  beforeEach(() => {
+    installMemoryStorage()
+    window.localStorage.removeItem(WORKBENCH_DRAFT_KEY)
+    window.localStorage.removeItem(WORKBENCH_SNAPSHOT_KEY)
+    useWorkspaceStore.getState().resetWorkspace()
+  })
+
+  it('tracks active workspace selections', () => {
+    const store = useWorkspaceStore.getState()
+
+    store.setActiveConversation('conv-review')
+    store.setActiveVersion('v3-1')
+    store.setSelectedGraphNode('cnn')
+    store.setSelectedBlock('block-related-work')
+    store.setRightPanelMode('list')
+    store.setAIRunStatus('reasoning')
+
+    expect(useWorkspaceStore.getState().activeConversationId).toBe('conv-review')
+    expect(useWorkspaceStore.getState().activeVersionId).toBe('v3-1')
+    expect(useWorkspaceStore.getState().selectedGraphNodeId).toBe('cnn')
+    expect(useWorkspaceStore.getState().selectedBlockId).toBe('block-related-work')
+    expect(useWorkspaceStore.getState().rightPanelMode).toBe('list')
+    expect(useWorkspaceStore.getState().aiRunStatus).toBe('reasoning')
+  })
+
+  it('acceptSuggestion applies all changed block content and clears suggestion', () => {
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().acceptSuggestion()
+
+    const updatedBlock = useWorkspaceStore
+      .getState()
+      .documentBlocks.find(block => block.id === 'block-related-work')
+
+    expect(updatedBlock?.content).toContain('依赖于手工设计的特征提取器')
+    expect(updatedBlock?.content).toContain('泛化能力有限')
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+  })
+
+  it('acceptCurrentChange applies only the selected change and keeps remaining changes reviewable', () => {
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().setCurrentChangeIndex(1)
+
+    useWorkspaceStore.getState().acceptCurrentChange()
+
+    const state = useWorkspaceStore.getState()
+    const acceptedBlock = state.documentBlocks.find(block => block.id === 'block-intro-2')
+    const untouchedBlock = state.documentBlocks.find(block => block.id === 'block-related-work')
+
+    expect(acceptedBlock?.content).toContain('网络结构演进、训练数据规模')
+    expect(untouchedBlock?.content).toBe(aiSuggestion.beforeBlocks.find(block => block.id === 'block-related-work')?.content)
+    expect(state.currentSuggestion?.changes.map(change => change.id)).toEqual(['change-related-work', 'change-cnn-citation'])
+    expect(state.currentSuggestion?.targetBlockIds).toEqual(['block-related-work', 'block-cnn'])
+    expect(state.currentChangeIndex).toBe(1)
+    expect(state.saveStatus).toBe('local-saved')
+  })
+
+  it('acceptSuggestion applies afterBlocks suggestions and persists a workspace snapshot version', () => {
+    const beforeBlock = useWorkspaceStore
+      .getState()
+      .documentBlocks.find(block => block.type === 'paragraph')
+
+    expect(beforeBlock).toBeDefined()
+
+    const suggestion: DocumentSuggestion = {
+      id: 'sse-suggestion-1',
+      title: 'AI 生成的修改建议',
+      summary: '已根据真实 SSE 输出生成建议。',
+      targetBlockIds: [beforeBlock!.id],
+      operation: 'replace_blocks',
+      beforeBlocks: [{ ...beforeBlock! }],
+      afterBlocks: [{ ...beforeBlock!, content: '真实 SSE 生成后的段落内容。' }],
+      reason: '根据用户请求改写目标段落。',
+      confidence: 0.76,
+      createdAt: '2026-04-30T00:00:00.000Z',
+      changes: [{
+        id: 'sse-change-1',
+        blockId: beforeBlock!.id,
+        type: 'modify',
+        originalText: beforeBlock!.content,
+        revisedText: '真实 SSE 生成后的段落内容。',
+        reason: '根据用户请求改写目标段落。',
+      }],
+      reasons: ['根据用户请求改写目标段落。'],
+      reasoningSteps: ['接收真实 SSE 输出。'],
+    }
+
+    useWorkspaceStore.getState().setCurrentSuggestion(suggestion)
+    useWorkspaceStore.getState().acceptSuggestion()
+
+    const updatedBlock = useWorkspaceStore
+      .getState()
+      .documentBlocks.find(block => block.id === beforeBlock!.id)
+
+    expect(updatedBlock?.content).toBe('真实 SSE 生成后的段落内容。')
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+    expect(useWorkspaceStore.getState().saveStatus).toBe('local-saved')
+    expect(window.localStorage.getItem(WORKBENCH_DRAFT_KEY)).toBeNull()
+
+    const storedSnapshot = JSON.parse(window.localStorage.getItem(WORKBENCH_SNAPSHOT_KEY) ?? '{}')
+    expect(storedSnapshot.documentBlocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: beforeBlock!.id, content: '真实 SSE 生成后的段落内容。' }),
+    ]))
+    expect(storedSnapshot.documentVersions[0]).toEqual(expect.objectContaining({
+      suggestionId: 'sse-suggestion-1',
+      changeCount: 1,
+      isCurrent: true,
+    }))
+    expect(storedSnapshot.documentVersions[0].documentBlocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: beforeBlock!.id, content: '真实 SSE 生成后的段落内容。' }),
+    ]))
+    expect(useWorkspaceStore.getState().documentVersions[0].suggestionId).toBe('sse-suggestion-1')
+  })
+
+  it('setActiveVersion switches document content to the selected version snapshot', () => {
+    const initialBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(initialBlock).toBeDefined()
+
+    const suggestion: DocumentSuggestion = {
+      id: 'version-switch-suggestion',
+      title: 'AI 生成的修改建议',
+      summary: '用于版本切换测试。',
+      targetBlockIds: [initialBlock!.id],
+      operation: 'replace_blocks',
+      beforeBlocks: [{ ...initialBlock! }],
+      afterBlocks: [{ ...initialBlock!, content: '版本切换后的新内容。' }],
+      reason: '测试版本快照。',
+      confidence: 0.8,
+      createdAt: '2026-04-30T00:00:00.000Z',
+      changes: [{
+        id: 'version-switch-change',
+        blockId: initialBlock!.id,
+        type: 'modify',
+        originalText: initialBlock!.content,
+        revisedText: '版本切换后的新内容。',
+        reason: '测试版本快照。',
+      }],
+      reasons: ['测试版本快照。'],
+      reasoningSteps: ['创建本地版本快照。'],
+    }
+
+    useWorkspaceStore.getState().setCurrentSuggestion(suggestion)
+    useWorkspaceStore.getState().acceptSuggestion()
+
+    const newVersionId = useWorkspaceStore.getState().activeVersionId
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === initialBlock!.id)?.content)
+      .toBe('版本切换后的新内容。')
+
+    useWorkspaceStore.getState().setActiveVersion('v3-2')
+
+    expect(useWorkspaceStore.getState().activeVersionId).toBe('v3-2')
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === initialBlock!.id)?.content)
+      .toBe(initialBlock!.content)
+    expect(useWorkspaceStore.getState().documentVersions.find(version => version.id === 'v3-2')?.isCurrent).toBe(true)
+    expect(useWorkspaceStore.getState().documentVersions.find(version => version.id === newVersionId)?.isCurrent).toBe(false)
+  })
+
+  it('previews and cancels a version snapshot without changing document content', () => {
+    const originalBlocks = useWorkspaceStore.getState().documentBlocks
+
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+
+    expect(useWorkspaceStore.getState().previewVersionId).toBe('v3-1')
+    expect(useWorkspaceStore.getState().documentBlocks).toEqual(originalBlocks)
+
+    useWorkspaceStore.getState().cancelVersionPreview()
+
+    expect(useWorkspaceStore.getState().previewVersionId).toBeNull()
+    expect(useWorkspaceStore.getState().documentBlocks).toEqual(originalBlocks)
+  })
+
+  it('restores a previewed version snapshot and clears pending review state', () => {
+    const initialBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(initialBlock).toBeDefined()
+
+    useWorkspaceStore.getState().setCurrentSuggestion({
+      id: 'restore-preview-suggestion',
+      title: 'AI 生成的修改建议',
+      summary: '用于恢复预览测试。',
+      targetBlockIds: [initialBlock!.id],
+      operation: 'replace_blocks',
+      beforeBlocks: [{ ...initialBlock! }],
+      afterBlocks: [{ ...initialBlock!, content: '等待恢复覆盖的当前内容。' }],
+      reason: '测试恢复预览版本。',
+      confidence: 0.8,
+      createdAt: '2026-04-30T00:00:00.000Z',
+      changes: [{
+        id: 'restore-preview-change',
+        blockId: initialBlock!.id,
+        type: 'modify',
+        originalText: initialBlock!.content,
+        revisedText: '等待恢复覆盖的当前内容。',
+        reason: '测试恢复预览版本。',
+      }],
+      reasons: ['测试恢复预览版本。'],
+      reasoningSteps: ['创建一个待处理建议。'],
+    })
+    useWorkspaceStore.getState().acceptSuggestion()
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().setSelectedBlock('missing-after-restore')
+    useWorkspaceStore.getState().startVersionPreview('v3-2')
+
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === initialBlock!.id)?.content)
+      .toBe('等待恢复覆盖的当前内容。')
+
+    useWorkspaceStore.getState().restorePreviewVersion()
+
+    const restoredState = useWorkspaceStore.getState()
+    expect(restoredState.activeVersionId).toBe('v3-2')
+    expect(restoredState.previewVersionId).toBeNull()
+    expect(restoredState.currentSuggestion).toBeNull()
+    expect(restoredState.selectedBlockId).toBeNull()
+    expect(restoredState.isRestoringVersion).toBe(false)
+    expect(restoredState.documentBlocks.find(block => block.id === initialBlock!.id)?.content)
+      .toBe(initialBlock!.content)
+    expect(restoredState.documentVersions.filter(version => version.isCurrent)).toHaveLength(1)
+    expect(restoredState.documentVersions.find(version => version.id === 'v3-2')?.isCurrent).toBe(true)
+    expect(JSON.parse(window.localStorage.getItem(WORKBENCH_SNAPSHOT_KEY) ?? '{}').activeVersionId).toBe('v3-2')
+  })
+
+  it('rejectSuggestion clears the pending AI suggestion without changing document blocks', () => {
+    const originalBlock = useWorkspaceStore
+      .getState()
+      .documentBlocks.find(block => block.id === 'block-related-work')
+
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().rejectSuggestion()
+
+    const currentBlock = useWorkspaceStore
+      .getState()
+      .documentBlocks.find(block => block.id === 'block-related-work')
+
+    expect(currentBlock?.content).toBe(originalBlock?.content)
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+  })
+
+  it('cancelAIRun stops streaming without creating an accepted suggestion path', () => {
+    const targetBlock = useWorkspaceStore.getState().startAIRun('请润色当前段落')
+
+    expect(targetBlock).toBeDefined()
+
+    useWorkspaceStore.getState().appendGeneratedToken('尚未完成的流式输出')
+    useWorkspaceStore.getState().cancelAIRun()
+
+    expect(useWorkspaceStore.getState().aiRunStatus).toBe('canceled')
+    expect(useWorkspaceStore.getState().aiStageLabel).toBe('已停止生成')
+    expect(useWorkspaceStore.getState().generatedText).toBe('')
+    expect(useWorkspaceStore.getState().pendingBeforeBlocks).toEqual([])
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+  })
+
+  it('stores SSE RAG papers and gaps as dynamic graph artifacts', () => {
+    useWorkspaceStore.getState().upsertRagPapers([
+      { id: 'paper-live-1', title: 'Live Paper', year: 2025, score: 0.93 },
+    ])
+    useWorkspaceStore.getState().upsertRagGaps([
+      { id: 'gap-live-1', description: 'Live Gap', severity: 'high', addressed_by: 0, score: 0.87 },
+    ])
+
+    const state = useWorkspaceStore.getState()
+
+    expect(state.ragPapers).toEqual([{ id: 'paper-live-1', title: 'Live Paper', year: 2025, score: 0.93 }])
+    expect(state.ragGaps).toEqual([{ id: 'gap-live-1', description: 'Live Gap', severity: 'high', addressed_by: 0, score: 0.87 }])
+    expect(state.graphNodes.some(node => node.id === 'paper:paper-live-1' && node.type === 'paper')).toBe(true)
+    expect(state.graphNodes.some(node => node.id === 'gap:gap-live-1' && node.type === 'gap')).toBe(true)
+    expect(state.references.some(reference => reference.id === 'paper-live-1' && reference.score === 0.93)).toBe(true)
+  })
+
+  it('clears previous RAG artifacts when a new AI run starts', () => {
+    useWorkspaceStore.getState().upsertRagPapers([
+      { id: 'paper-old', title: 'Old Paper', year: 2024, score: 0.8 },
+    ])
+    useWorkspaceStore.getState().upsertRagGaps([
+      { id: 'gap-old', description: 'Old Gap', severity: 'medium', addressed_by: 1, score: 0.5 },
+    ])
+
+    useWorkspaceStore.getState().startAIRun('请改写当前段落')
+
+    expect(useWorkspaceStore.getState().ragPapers).toEqual([])
+    expect(useWorkspaceStore.getState().ragGaps).toEqual([])
+    expect(useWorkspaceStore.getState().graphNodes.some(node => node.id === 'paper:paper-old')).toBe(false)
+    expect(useWorkspaceStore.getState().graphNodes.some(node => node.id === 'gap:gap-old')).toBe(false)
+  })
+
+  it('hydrates a workspace snapshot before falling back to the old draft key', () => {
+    const snapshotBlocks = useWorkspaceStore.getState().documentBlocks.map(block => (
+      block.type === 'paragraph' ? { ...block, content: '从 workspace snapshot 恢复的内容。' } : block
+    ))
+    const legacyBlocks = useWorkspaceStore.getState().documentBlocks.map(block => (
+      block.type === 'paragraph' ? { ...block, content: '不应优先恢复的旧草稿。' } : block
+    ))
+    const baseVersion = useWorkspaceStore.getState().documentVersions[0]
+
+    window.localStorage.setItem(WORKBENCH_SNAPSHOT_KEY, JSON.stringify({
+      schemaVersion: 1,
+      activeVersionId: 'snapshot-version',
+      documentBlocks: snapshotBlocks,
+      documentVersions: [{
+        ...baseVersion,
+        id: 'snapshot-version',
+        label: '本地快照',
+        isCurrent: true,
+        createdAt: '2026-04-30T00:00:00.000Z',
+        documentBlocks: snapshotBlocks,
+      }],
+    }))
+    window.localStorage.setItem(WORKBENCH_DRAFT_KEY, JSON.stringify(legacyBlocks))
+    useWorkspaceStore.getState().hydrateLocalDraft()
+
+    expect(useWorkspaceStore.getState().activeVersionId).toBe('snapshot-version')
+    expect(useWorkspaceStore.getState().documentBlocks.some(block => block.content === '从 workspace snapshot 恢复的内容。')).toBe(true)
+    expect(useWorkspaceStore.getState().documentBlocks.some(block => block.content === '不应优先恢复的旧草稿。')).toBe(false)
+    expect(useWorkspaceStore.getState().documentVersions[0].documentBlocks.some(block => block.content === '从 workspace snapshot 恢复的内容。')).toBe(true)
+    expect(useWorkspaceStore.getState().saveStatus).toBe('local-saved')
+  })
+
+  it('migrates the old local draft key into a current local version snapshot', () => {
+    const storedBlocks = useWorkspaceStore.getState().documentBlocks.map(block => (
+      block.type === 'paragraph' ? { ...block, content: '从 localStorage 恢复的内容。' } : block
+    ))
+
+    window.localStorage.setItem(WORKBENCH_DRAFT_KEY, JSON.stringify(storedBlocks))
+    useWorkspaceStore.getState().hydrateLocalDraft()
+
+    expect(useWorkspaceStore.getState().documentBlocks.some(block => block.content === '从 localStorage 恢复的内容。')).toBe(true)
+    expect(useWorkspaceStore.getState().documentVersions[0].summary).toBe('从本地草稿恢复')
+    expect(useWorkspaceStore.getState().documentVersions[0].documentBlocks.some(block => block.content === '从 localStorage 恢复的内容。')).toBe(true)
+    expect(useWorkspaceStore.getState().saveStatus).toBe('local-saved')
+
+    window.localStorage.removeItem(WORKBENCH_SNAPSHOT_KEY)
+    window.localStorage.setItem(WORKBENCH_DRAFT_KEY, '{bad json')
+    useWorkspaceStore.getState().resetWorkspace()
+    useWorkspaceStore.getState().hydrateLocalDraft()
+
+    expect(useWorkspaceStore.getState().documentBlocks.some(block => block.content === '从 localStorage 恢复的内容。')).toBe(false)
+  })
+
+  it('keeps in-memory accepted changes modified when local snapshot persistence fails', () => {
+    installMemoryStorage({ throwOnSet: true })
+    useWorkspaceStore.getState().resetWorkspace()
+
+    const beforeBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(beforeBlock).toBeDefined()
+
+    useWorkspaceStore.getState().setCurrentSuggestion({
+      id: 'persist-failure-suggestion',
+      title: 'AI 生成的修改建议',
+      summary: '用于持久化失败测试。',
+      targetBlockIds: [beforeBlock!.id],
+      operation: 'replace_blocks',
+      beforeBlocks: [{ ...beforeBlock! }],
+      afterBlocks: [{ ...beforeBlock!, content: '内存中仍应更新的内容。' }],
+      reason: '测试本地存储失败。',
+      confidence: 0.8,
+      createdAt: '2026-04-30T00:00:00.000Z',
+      changes: [{
+        id: 'persist-failure-change',
+        blockId: beforeBlock!.id,
+        type: 'modify',
+        originalText: beforeBlock!.content,
+        revisedText: '内存中仍应更新的内容。',
+        reason: '测试本地存储失败。',
+      }],
+      reasons: ['测试本地存储失败。'],
+      reasoningSteps: ['模拟 localStorage 抛错。'],
+    })
+    useWorkspaceStore.getState().acceptSuggestion()
+
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === beforeBlock!.id)?.content)
+      .toBe('内存中仍应更新的内容。')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
+    expect(useWorkspaceStore.getState().documentVersions[0].suggestionId).toBe('persist-failure-suggestion')
+  })
+
+  // ─── P2-2: 版本恢复审计提示 ───────────────────────────────────────────────
+
+  it('P2-2: restorePreviewVersion writes a lastRestoreNotice after successful restore', () => {
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+
+    const notice = useWorkspaceStore.getState().lastRestoreNotice
+    expect(notice).not.toBeNull()
+  })
+
+  it('P2-2: lastRestoreNotice contains the restored version label', () => {
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+
+    const notice = useWorkspaceStore.getState().lastRestoreNotice
+    expect(notice?.versionTitle).toBeTruthy()
+    // v3-1 is one of the seeded mock versions — its label must appear in the notice
+    const v31Label = useWorkspaceStore
+      .getState()
+      .documentVersions.find(v => v.id === 'v3-1')?.label ?? ''
+    // After restore the version list is still available; label is set before set() completes
+    // We recorded it at the time of restore, so it must match the mock label
+    expect(typeof notice?.versionTitle).toBe('string')
+    expect(notice!.versionTitle.length).toBeGreaterThan(0)
+    // The notice title should equal the label of the version we just restored
+    // (we re-check via the version we set active after restore)
+    const restoredVersion = useWorkspaceStore
+      .getState()
+      .documentVersions.find(v => v.id === useWorkspaceStore.getState().activeVersionId)
+    expect(notice?.versionTitle).toBe(restoredVersion?.label ?? v31Label)
+  })
+
+  it('P2-2: lastRestoreNotice contains changedBlockCount computed from diff', () => {
+    // Seed a version with blocks that differ from current
+    const currentBlocks = useWorkspaceStore.getState().documentBlocks
+    const modifiedBlocks = currentBlocks.map(b =>
+      b.type === 'paragraph' ? { ...b, content: b.content + ' (modified)' } : b
+    )
+    const versions = useWorkspaceStore.getState().documentVersions
+    useWorkspaceStore.setState({
+      documentVersions: versions.map(v =>
+        v.id === 'v3-1' ? { ...v, documentBlocks: modifiedBlocks } : v
+      ),
+    })
+
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+
+    const notice = useWorkspaceStore.getState().lastRestoreNotice
+    expect(typeof notice?.changedBlockCount).toBe('number')
+    expect(notice!.changedBlockCount).toBeGreaterThan(0)
+  })
+
+  it('P2-2: lastRestoreNotice contains a restoredAt ISO timestamp string', () => {
+    const before = Date.now()
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+    const after = Date.now()
+
+    const notice = useWorkspaceStore.getState().lastRestoreNotice
+    expect(notice?.restoredAt).toBeTruthy()
+    const parsed = new Date(notice!.restoredAt).getTime()
+    expect(parsed).toBeGreaterThanOrEqual(before)
+    expect(parsed).toBeLessThanOrEqual(after)
+  })
+
+  it('P2-2: dismissRestoreNotice clears the notice', () => {
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+    expect(useWorkspaceStore.getState().lastRestoreNotice).not.toBeNull()
+
+    useWorkspaceStore.getState().dismissRestoreNotice()
+
+    expect(useWorkspaceStore.getState().lastRestoreNotice).toBeNull()
+  })
+
+  it('P2-2: cancelVersionPreview does NOT set lastRestoreNotice', () => {
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().cancelVersionPreview()
+
+    expect(useWorkspaceStore.getState().lastRestoreNotice).toBeNull()
+  })
+
+  it('P2-2: accepting and rejecting AI suggestions do not affect lastRestoreNotice', () => {
+    // First, do a restore so the notice is set
+    useWorkspaceStore.getState().startVersionPreview('v3-1')
+    useWorkspaceStore.getState().restorePreviewVersion()
+    const notice = useWorkspaceStore.getState().lastRestoreNotice
+    expect(notice).not.toBeNull()
+
+    // Accept a suggestion — notice must remain unchanged
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().acceptSuggestion()
+    expect(useWorkspaceStore.getState().lastRestoreNotice).toEqual(notice)
+
+    // Reject a suggestion — notice must remain unchanged
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+    useWorkspaceStore.getState().rejectSuggestion()
+    expect(useWorkspaceStore.getState().lastRestoreNotice).toEqual(notice)
+  })
+})
