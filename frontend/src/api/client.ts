@@ -41,7 +41,7 @@ export async function apiFetch<T = unknown>(
   if (body?.ok === false) {
     const code = body.error?.code ?? 'UNKNOWN'
     const message = body.error?.message ?? `请求失败`
-    if (code === 'AUTH_INVALID_TOKEN' || code === 'AUTH_MISSING_TOKEN') {
+    if (res.status === 401 || code.startsWith('AUTH_')) {
       useUserStore.getState().logout()
       window.location.href = '/login'
     }

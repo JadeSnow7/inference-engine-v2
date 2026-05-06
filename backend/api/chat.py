@@ -6,7 +6,7 @@ from typing import Optional
 from api.auth import get_current_user_id
 from api.responses import ok
 from core.loop import main_loop
-from profile.models import from_survey
+from profile.models import UserProfile, from_survey
 
 router = APIRouter()
 
@@ -83,7 +83,8 @@ async def get_session_artifact(session_id: str, request: Request, user_id: str =
 async def get_profile(request: Request, user_id: str = Depends(get_current_user_id)):
     """Return the current user profile dict."""
     profile = await request.app.state.profile_store.get(user_id)
-    return ok(profile or {})
+    normalized = profile if isinstance(profile, UserProfile) else UserProfile.from_dict(profile or {})
+    return ok(normalized.to_dict())
 
 
 @router.patch("/profile/me")
@@ -95,7 +96,6 @@ async def patch_profile(request: Request, user_id: str = Depends(get_current_use
     for k, v in body.items():
         if k in allowed:
             profile[k] = v
-    from profile.models import UserProfile
     await request.app.state.profile_store.set(user_id, UserProfile.from_dict(profile))
     return ok({"updated": True})
 
