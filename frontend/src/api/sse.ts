@@ -43,7 +43,9 @@ export function connectSSE(
         return
       }
       if (!res.ok) {
-        handlers.onError(`连接失败 (${res.status})`)
+        const body = await res.json().catch(() => null)
+        const msg = body?.error?.message ?? `连接失败 (${res.status})`
+        handlers.onError(msg)
         return
       }
       const resolvedSessionId = res.headers.get('X-Session-Id')
