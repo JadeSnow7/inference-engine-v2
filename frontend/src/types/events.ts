@@ -9,17 +9,17 @@ export interface SSEEvent {
 
 export interface PaperItem {
   id: string
-  title: string
-  year: number
-  score: number
+  title?: string
+  year?: number
+  score?: number
 }
 
 export interface GapItem {
   id: string
-  description: string
-  severity: 'high' | 'medium' | 'low'
-  addressed_by: number
-  score: number
+  description?: string
+  severity?: 'high' | 'medium' | 'low'
+  addressed_by?: number
+  score?: number
 }
 
 export type MessageRole = 'user' | 'assistant'

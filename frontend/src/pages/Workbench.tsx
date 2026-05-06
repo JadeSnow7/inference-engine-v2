@@ -225,9 +225,9 @@ export default function Workbench() {
                   <div className="space-y-2">
                     {papers.map(p => (
                       <div key={p.id} className="flex items-start justify-between gap-2">
-                        <span className="text-sm text-scholar-text-primary leading-snug">{p.title}</span>
+                        <span className="text-sm text-scholar-text-primary leading-snug">{p.title ?? `检索文献 ${p.id}`}</span>
                         <span className="text-[11px] text-scholar-text-weak shrink-0 font-mono">
-                          {p.year} · {(p.score * 100).toFixed(0)}%
+                          {p.year ?? '年份未知'} · {typeof p.score === 'number' ? `${(p.score * 100).toFixed(0)}%` : '相关度待补充'}
                         </span>
                       </div>
                     ))}
@@ -245,7 +245,7 @@ export default function Workbench() {
                     {gaps.map(g => (
                       <div key={g.id} className="flex items-start gap-2">
                         <SeverityDot severity={g.severity} />
-                        <span className="text-sm text-scholar-text-primary leading-snug">{g.description}</span>
+                        <span className="text-sm text-scholar-text-primary leading-snug">{g.description ?? '暂无研究空白描述'}</span>
                         {g.addressed_by === 0 && (
                           <span className="text-[10px] shrink-0 text-white bg-scholar-discovery px-1.5 py-0.5 rounded font-bold">未填补</span>
                         )}
@@ -334,7 +334,7 @@ export default function Workbench() {
 // ----------------------------------------------------------------
 // Sub-components
 // ----------------------------------------------------------------
-function SeverityDot({ severity }: { severity: 'high' | 'medium' | 'low' }) {
+function SeverityDot({ severity }: { severity: 'high' | 'medium' | 'low' | undefined }) {
   const color = severity === 'high'
     ? 'bg-red-400'
     : severity === 'medium'

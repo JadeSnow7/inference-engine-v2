@@ -5,7 +5,7 @@ import ChatPage from './pages/ChatPage'
 import WorkbenchLayout from './components/layout/WorkbenchLayout'
 import Dashboard from './pages/Dashboard'
 import Courses from './pages/Courses'
-import Workbench from './pages/Workbench'
+import WorkspacePage from './pages/WorkspacePage'
 import Discovery from './pages/Discovery'
 
 export default function App() {
@@ -13,6 +13,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/workbench"
+          element={
+            <ProtectedRoute>
+              <WorkspacePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={
@@ -23,7 +31,6 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="courses" element={<Courses />} />
-          <Route path="workbench" element={<Workbench />} />
           <Route path="discovery" element={<Discovery />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

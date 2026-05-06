@@ -1,7 +1,7 @@
 import { useSidebarStore } from '../../store/sidebar'
 import type { GapItem } from '../../types/events'
 
-const SEVERITY_STYLES: Record<GapItem['severity'], string> = {
+const SEVERITY_STYLES: Record<NonNullable<GapItem['severity']>, string> = {
   high: 'border-l-4 border-l-red-500',
   medium: 'border-l-4 border-l-yellow-400',
   low: 'border-l-4 border-l-gray-300',
@@ -23,19 +23,21 @@ export function GapsPanel() {
   return (
     <div className="space-y-2 p-3">
       {gaps.map((gap) => {
-        const isUnfilled = gap.severity === 'high' && gap.addressed_by === 0
+        const severity = gap.severity ?? 'low'
+        const addressedBy = gap.addressed_by ?? -1
+        const isUnfilled = severity === 'high' && addressedBy === 0
         const borderClass =
-          gap.severity === 'high' && gap.addressed_by > 0
+          severity === 'high' && addressedBy > 0
             ? HIGH_ADDRESSED_STYLE
-            : SEVERITY_STYLES[gap.severity]
+            : SEVERITY_STYLES[severity]
 
         return (
           <div key={gap.id} className={`border rounded-lg p-3 text-sm ${borderClass}`}>
             <div className="flex items-center gap-2 mb-1">
               <span className={`text-xs font-medium ${
-                isUnfilled ? 'text-red-600' : gap.severity === 'high' ? 'text-orange-600' : 'text-gray-500'
+                isUnfilled ? 'text-red-600' : severity === 'high' ? 'text-orange-600' : 'text-gray-500'
               }`}>
-                {gap.severity.toUpperCase()}
+                {severity.toUpperCase()}
               </span>
               {isUnfilled && (
                 <span className="text-xs text-red-500 bg-red-50 px-1.5 py-0.5 rounded">未填补</span>
@@ -46,7 +48,7 @@ export function GapsPanel() {
                 此空白暂无文献填补，可作为你的研究切入点
               </p>
             )}
-            <p className="text-gray-700 leading-snug">{gap.description}</p>
+            <p className="text-gray-700 leading-snug">{gap.description ?? '暂无研究空白描述'}</p>
           </div>
         )
       })}

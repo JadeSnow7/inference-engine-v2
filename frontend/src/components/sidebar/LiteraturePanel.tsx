@@ -19,18 +19,18 @@ export function LiteraturePanel() {
             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full"
-                style={{ width: `${Math.round(paper.score * 100)}%` }}
+                style={{ width: `${Math.round((paper.score ?? 0) * 100)}%` }}
               />
             </div>
             <span className="text-xs text-gray-500 shrink-0">
-              {Math.round(paper.score * 100)}%
+              {typeof paper.score === 'number' ? `${Math.round(paper.score * 100)}%` : '待补充'}
             </span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
-              {paper.year}
+              {paper.year ?? '年份未知'}
             </span>
-            <p className="text-gray-700 line-clamp-2 leading-snug">{paper.title}</p>
+            <p className="text-gray-700 line-clamp-2 leading-snug">{paper.title ?? `检索文献 ${paper.id}`}</p>
           </div>
         </div>
       ))}

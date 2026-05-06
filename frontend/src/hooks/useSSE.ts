@@ -7,6 +7,7 @@ import { useSidebarStore } from '../store/sidebar'
 export function useSSE() {
   // Constraint B: AbortController singleton — one active stream at a time
   const controllerRef = useRef<SSEController | null>(null)
+  const sessionIdRef = useRef<string | undefined>(undefined)
 
   const send = useCallback((message: string) => {
     // Constraint B: abort previous request before starting new one
@@ -21,6 +22,7 @@ export function useSSE() {
     const assistantId = useChatStore.getState().startAssistantMessage()
 
     controllerRef.current = connectSSE(message, {
+      onSessionId: (sessionId) => { sessionIdRef.current = sessionId },
       onStage: (stage) => usePipelineStore.getState().setStage(stage),
       onPapers: (papers) => useSidebarStore.getState().setPapers(papers),
       onGaps: (gaps) => useSidebarStore.getState().setGaps(gaps),
@@ -31,7 +33,7 @@ export function useSSE() {
         useChatStore.getState().appendToken(assistantId, `\n\n> ⚠ ${msg}`)
         useChatStore.getState().finalizeMessage(assistantId)
       },
-    })
+    }, sessionIdRef.current)
   }, [])
 
   // Constraint I: abort on component unmount

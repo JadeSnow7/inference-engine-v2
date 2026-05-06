@@ -4,7 +4,7 @@ import { apiFetch } from '../api/client'
 import { useUserStore } from '../store/user'
 
 // Constraint F: campus email regex
-const CAMPUS_EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@(stu\.)?hust\.edu\.cn$/
+const CAMPUS_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@(stu\.)?hust\.edu\.cn$/
 
 type Tab = 'login' | 'register'
 
