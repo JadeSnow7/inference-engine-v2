@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     volumes:
       - redis_data:/data
 
@@ -10,6 +10,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       HF_HOME: /app/data/.cache/huggingface
+      HF_HUB_DISABLE_XET: "1"
+      ENABLE_LOCAL_RAG: "0"
+      RAG_PROVIDER: ${RAG_PROVIDER:-disabled}
+      DASHSCOPE_KNOWLEDGE_BASE_ID: ${DASHSCOPE_KNOWLEDGE_BASE_ID:-}
+      DASHSCOPE_RAG_MODEL: ${DASHSCOPE_RAG_MODEL:-qwen-plus}
     depends_on:
       - redis
     volumes:
@@ -19,7 +24,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "80:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - backend
     restart: unless-stopped

@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
@@ -14,12 +14,14 @@ RUN apt-get update \
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel -i https://mirrors.aliyun.com/pypi/simple/
 
-# Install CPU-only PyTorch before sentence-transformers to avoid the ~4 GB CUDA wheels
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Install CPU-only PyTorch before sentence-transformers to avoid CUDA wheels
+RUN pip install --no-cache-dir torch==2.11.0+cpu \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    -f https://mirrors.aliyun.com/pytorch-wheels/cpu/
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 COPY . .
 

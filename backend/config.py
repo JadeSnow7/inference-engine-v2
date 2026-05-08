@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="", validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET")) if Field else ""
     REDIS_URL: str = "redis://localhost:6379/0"
     MAX_HISTORY_TOKENS: int = 6000
+    RAG_PROVIDER: str = "disabled"
+    DASHSCOPE_KNOWLEDGE_BASE_ID: str = ""
+    DASHSCOPE_RAG_MODEL: str = "qwen-plus"
+    RAG_TOP_K: int = 5
+    ENABLE_LOCAL_RAG: bool = False
     EMBED_MODEL: str = "BAAI/bge-small-zh-v1.5"
     GRAPH_PERSIST_PATH: str = "data/knowledge_graph.gpickle"
     CORS_ORIGINS: str = "http://localhost:5173"
@@ -33,6 +38,11 @@ class Settings(BaseSettings):
                 raise KeyError("SECRET_KEY")
             self.REDIS_URL = os.getenv("REDIS_URL", self.REDIS_URL)
             self.MAX_HISTORY_TOKENS = int(os.getenv("MAX_HISTORY_TOKENS", str(self.MAX_HISTORY_TOKENS)))
+            self.RAG_PROVIDER = os.getenv("RAG_PROVIDER", self.RAG_PROVIDER)
+            self.DASHSCOPE_KNOWLEDGE_BASE_ID = os.getenv("DASHSCOPE_KNOWLEDGE_BASE_ID", self.DASHSCOPE_KNOWLEDGE_BASE_ID)
+            self.DASHSCOPE_RAG_MODEL = os.getenv("DASHSCOPE_RAG_MODEL", self.DASHSCOPE_RAG_MODEL)
+            self.RAG_TOP_K = int(os.getenv("RAG_TOP_K", str(self.RAG_TOP_K)))
+            self.ENABLE_LOCAL_RAG = os.getenv("ENABLE_LOCAL_RAG", "0").lower() in {"1", "true", "yes", "on"}
             self.EMBED_MODEL = os.getenv("EMBED_MODEL", self.EMBED_MODEL)
             self.GRAPH_PERSIST_PATH = os.getenv("GRAPH_PERSIST_PATH", self.GRAPH_PERSIST_PATH)
             self.CORS_ORIGINS = os.getenv("CORS_ORIGINS", self.CORS_ORIGINS)

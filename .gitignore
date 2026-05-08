@@ -3,4 +3,10 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
+*.log
+.claude/
+data/
+secret/
+node_modules/
+dist/
 backend/data/*.gpickle

@@ -39,7 +39,12 @@ async def _stream_paragraph(
     if papers:
         yield fmt(SSEEvent(type=EventType.PAPERS, data=papers))
 
-    context_lines = [f"- {item['title']}（{item['year']}）" for item in papers]
+    context_lines = []
+    for item in papers:
+        line = f"- {item.get('title', '未命名资料')}（{item.get('year') or '年份未知'}）"
+        if item.get("snippet"):
+            line += f"\n  摘要：{item['snippet']}"
+        context_lines.append(line)
     paper_context = "\n".join(context_lines) if context_lines else "（暂无相关文献）"
 
     # ── Stage 2: 段落生成 ────────────────────────────────────
@@ -86,4 +91,3 @@ async def _stream_paragraph(
         terms = "、".join(k for k, _ in top_wp[:3])
         wp_hint = f"\n\n💡 **个性化提示**：你在写作时可以重点关注「{terms}」等概念的精准使用。"
         yield fmt(SSEEvent(type=EventType.TOKEN, content=wp_hint))
-

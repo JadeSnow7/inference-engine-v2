@@ -155,3 +155,28 @@ class GraphRAGRetriever:
             current_query = " ".join(concept_labels)
 
 
+class DisabledRAGRetriever:
+    provider_name = "disabled"
+
+    def retrieve_literature(self, query, top_k=10) -> list[dict]:
+        return []
+
+    def discover_research_gaps(self, domain, query, top_k=5) -> list[dict]:
+        return []
+
+    def trace_method_lineage(self, method_name) -> list[dict]:
+        return []
+
+    def iterative_gap_discovery(
+        self,
+        query: str,
+        domain: str,
+        max_rounds: int = 3,
+        new_node_threshold: int = 2,
+        top_papers: int = 8,
+        top_gaps: int = 5,
+    ):
+        yield (1, [], [])
+
+    def health(self) -> dict:
+        return {"provider": self.provider_name, "configured": True}
