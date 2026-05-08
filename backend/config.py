@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     MAX_HISTORY_TOKENS: int = 6000
     RAG_PROVIDER: str = "disabled"
     DASHSCOPE_KNOWLEDGE_BASE_ID: str = ""
-    DASHSCOPE_RAG_MODEL: str = "qwen-plus"
+    DASHSCOPE_RAG_MODEL: str = "qwen3.6-plus"
     RAG_TOP_K: int = 5
     ENABLE_LOCAL_RAG: bool = False
     EMBED_MODEL: str = "BAAI/bge-small-zh-v1.5"

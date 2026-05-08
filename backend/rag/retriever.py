@@ -179,4 +179,4 @@ class DisabledRAGRetriever:
         yield (1, [], [])
 
     def health(self) -> dict:
-        return {"provider": self.provider_name, "configured": True}
+        return {"provider": self.provider_name, "configured": False}

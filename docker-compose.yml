@@ -14,7 +14,7 @@ services:
       ENABLE_LOCAL_RAG: "0"
       RAG_PROVIDER: ${RAG_PROVIDER:-disabled}
       DASHSCOPE_KNOWLEDGE_BASE_ID: ${DASHSCOPE_KNOWLEDGE_BASE_ID:-}
-      DASHSCOPE_RAG_MODEL: ${DASHSCOPE_RAG_MODEL:-qwen-plus}
+      DASHSCOPE_RAG_MODEL: ${DASHSCOPE_RAG_MODEL:-qwen3.6-plus}
     depends_on:
       - redis
     volumes:
