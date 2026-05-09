@@ -50,3 +50,16 @@ Run the full gate after system outputs and theta sweep data exist:
 ```bash
 python3 scripts/validate_eval_data.py --scope full
 ```
+
+## Offline Stub Runner
+
+Use this command to fill all output files with deterministic schema-valid dry-run data:
+
+```bash
+python3 scripts/run_rq2_offline.py
+python3 scripts/validate_eval_data.py --scope full
+```
+
+Rows created by this command contain `"run_type": "offline_stub"` and must not
+be reported as real LLM or GraphRAG experiment results. They exist to verify the
+data pipeline before real collection.
