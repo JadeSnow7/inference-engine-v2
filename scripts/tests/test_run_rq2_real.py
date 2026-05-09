@@ -36,6 +36,23 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertEqual(row["theta_used"], 0.6)
         self.assertEqual(row["generated_refs"], [])
 
+    def test_build_real_no_llm_row_uses_method_config(self):
+        query = {"query_id": "Q001", "text": "citation evidence", "expected_ref_nodes": ["A"]}
+
+        class FakeRAG:
+            def retrieve(self, text, *, top_k, graph_expand):
+                self.called = {"text": text, "top_k": top_k, "graph_expand": graph_expand}
+                return [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "citation evidence", "score": 0.8}]
+
+        rag = FakeRAG()
+
+        row = real.build_real_row(query, "full_graphrag", rag, theta=0.6, with_llm=False)
+
+        self.assertEqual(rag.called["graph_expand"], True)
+        self.assertEqual(row["run_type"], "real_system")
+        self.assertEqual(row["generated_refs"], ["A"])
+        self.assertTrue(row["validation_results"]["A"]["pass"])
+
 
 if __name__ == "__main__":
     unittest.main()
