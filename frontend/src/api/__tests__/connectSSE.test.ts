@@ -171,6 +171,32 @@ describe('connectSSE', () => {
     expect(init.body).toBe(JSON.stringify({ message: '继续', session_id: 'sess-1' }))
   })
 
+  it('sends mode when a specialized chat mode is selected', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(makeResponse('data: {"type":"done"}\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    connectSSE(
+      '检查论文格式规范',
+      {
+        onStage: vi.fn(),
+        onPapers: vi.fn(),
+        onGaps: vi.fn(),
+        onToken: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+      },
+      'sess-1',
+      'norms',
+    )
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.body).toBe(JSON.stringify({ message: '检查论文格式规范', session_id: 'sess-1', mode: 'norms' }))
+  })
+
   it('prefers backend envelope error message for non-2xx response', async () => {
     const onError = vi.fn()
     vi.stubGlobal(

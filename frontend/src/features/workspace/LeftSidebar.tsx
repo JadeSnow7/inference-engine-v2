@@ -26,11 +26,25 @@ const resourceItems = [
 export function LeftSidebar() {
   const activeConversationId = useWorkspaceStore(state => state.activeConversationId)
   const setActiveConversation = useWorkspaceStore(state => state.setActiveConversation)
+  const setRightPanelMode = useWorkspaceStore(state => state.setRightPanelMode)
+  const resetWorkspace = useWorkspaceStore(state => state.resetWorkspace)
+  const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
+
+  const handleResourceClick = (label: string) => {
+    setRightPanelMode(label === '知识图谱' ? 'graph' : 'list')
+    setRestoreSessionNotice(`已切换到${label}`)
+  }
 
   return (
     <aside className="flex w-[280px] shrink-0 flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm">
       <div className="p-4">
-        <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-scholar-primary to-scholar-discovery px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-100 transition hover:brightness-105">
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-scholar-primary to-scholar-discovery px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-100 transition hover:brightness-105"
+          onClick={() => {
+            resetWorkspace()
+            setRestoreSessionNotice('已开始新对话')
+          }}
+        >
           <Plus size={16} />
           新建对话
         </button>
@@ -81,6 +95,7 @@ export function LeftSidebar() {
                 <button
                   key={item.label}
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"
+                  onClick={() => handleResourceClick(item.label)}
                 >
                   <Icon size={15} />
                   <span className="flex-1 text-left">{item.label}</span>
@@ -93,9 +108,9 @@ export function LeftSidebar() {
       </div>
 
       <div className="flex items-center justify-around border-t border-scholar-border bg-scholar-bg-canvas/60 p-3">
-        <SidebarTool label="设置" icon={<Settings size={16} />} />
-        <SidebarTool label="帮助" icon={<HelpCircle size={16} />} />
-        <SidebarTool label="全屏" icon={<Maximize2 size={16} />} />
+        <SidebarTool label="设置" icon={<Settings size={16} />} onClick={() => setRestoreSessionNotice('设置面板将在下一阶段接入')} />
+        <SidebarTool label="帮助" icon={<HelpCircle size={16} />} onClick={() => setRestoreSessionNotice('提示：选择正文段落后，可在底部输入修改或规范审查需求')} />
+        <SidebarTool label="全屏" icon={<Maximize2 size={16} />} onClick={() => void document.documentElement.requestFullscreen?.()} />
       </div>
     </aside>
   )
@@ -110,9 +125,13 @@ function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
   )
 }
 
-function SidebarTool({ icon, label }: { icon: ReactNode; label: string }) {
+function SidebarTool({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
-    <button className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-white hover:text-scholar-primary" aria-label={label}>
+    <button
+      className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-white hover:text-scholar-primary"
+      aria-label={label}
+      onClick={onClick}
+    >
       {icon}
     </button>
   )

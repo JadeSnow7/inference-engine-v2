@@ -109,10 +109,12 @@ export default function Workbench() {
 
 
   // ── 发送 ──────────────────────────────────────────────────────
-  const handleGenerate = useCallback(() => {
-    if (!inputText.trim() || streamState === 'generating' || streamState === 'restoring') return
+  const runPrompt = useCallback((rawPrompt: string) => {
+    const prompt = rawPrompt.trim()
+    if (!prompt || streamState === 'generating' || streamState === 'restoring') return
 
     // 重置状态
+    setInputText(prompt)
     setStreamState('generating')
     setOutputText('')
     setCurrentStage('连接中...')
@@ -121,7 +123,7 @@ export default function Workbench() {
     setGaps([])
     setIsRightPanelOpen(true)
 
-    sseRef.current = connectSSE(inputText.trim(), {
+    sseRef.current = connectSSE(prompt, {
       onSessionId: (sessionId) => setActiveSessionId(sessionId),
       onStage:  (stage)   => setCurrentStage(stage),
       onPapers: (items)   => setPapers(items),
@@ -138,7 +140,16 @@ export default function Workbench() {
         setCurrentStage('')
       },
     }, activeSessionId)
-  }, [activeSessionId, inputText, streamState, setIsRightPanelOpen])
+  }, [activeSessionId, streamState, setIsRightPanelOpen])
+
+  const handleGenerate = useCallback(() => {
+    runPrompt(inputText)
+  }, [inputText, runPrompt])
+
+  const handleFollowUp = useCallback((intent: string) => {
+    if (!outputText.trim()) return
+    runPrompt(`${intent}\n\n请基于以下已有内容继续处理：\n\n${outputText.trim()}`)
+  }, [outputText, runPrompt])
 
   // ── Enter 发送（Shift+Enter 换行）──────────────────────────────
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -278,8 +289,16 @@ export default function Workbench() {
               {/* 完成后操作按钮 */}
               {streamState === 'done' && outputText && !errorMsg && (
                 <div className="mt-10 pt-6 border-t border-scholar-border/60 flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2">
-                  <ActionButton icon={<ArrowRight size={14} />} text="继续提炼核心矛盾" onClick={() => {}} />
-                  <ActionButton icon={<Sparkles size={14} />} text="改写为学术摘要语气" onClick={() => {}} />
+                  <ActionButton
+                    icon={<ArrowRight size={14} />}
+                    text="继续提炼核心矛盾"
+                    onClick={() => handleFollowUp('继续提炼核心矛盾：请从已有内容中提炼核心问题、主要矛盾和后续论证方向。')}
+                  />
+                  <ActionButton
+                    icon={<Sparkles size={14} />}
+                    text="改写为学术摘要语气"
+                    onClick={() => handleFollowUp('改写为学术摘要语气：请将已有内容压缩为严谨、客观、适合论文摘要的表达。')}
+                  />
                   <ActionButton
                     icon={<LinkIcon size={14} />}
                     text="一键导出为飞书云文档"

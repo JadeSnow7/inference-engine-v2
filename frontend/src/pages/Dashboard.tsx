@@ -29,7 +29,7 @@ export default function Dashboard() {
           icon={<FolderKanban size={24} className="text-orange-500" />}
           title="飞书云文档协作"
           desc="查看并回流导师审批过的初稿"
-          onClick={() => {}}
+          onClick={() => navigate('/workbench')}
         />
         <ActionCard
           icon={<Network size={24} className="text-scholar-discovery" />}

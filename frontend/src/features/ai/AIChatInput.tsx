@@ -1,17 +1,21 @@
-import { Globe2, Library, Network, Send, Square, WandSparkles } from 'lucide-react'
+import { BookCheck, Globe2, Library, Network, Send, Square, WandSparkles, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { connectSSE, type SSEController } from '../../api/sse'
 import { useWorkspaceStore } from '../../store/workspace'
 
-const quickModes = [
-  { label: '深度思考', icon: WandSparkles },
-  { label: '联网搜索', icon: Globe2 },
-  { label: '引用增强', icon: Library },
-  { label: '图谱检索', icon: Network },
+type QuickModeId = 'deep' | 'web' | 'citation' | 'graph' | 'norms'
+
+const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon }> = [
+  { id: 'deep', label: '深度思考', icon: WandSparkles },
+  { id: 'web', label: '联网搜索', icon: Globe2 },
+  { id: 'citation', label: '引用增强', icon: Library },
+  { id: 'graph', label: '图谱检索', icon: Network },
+  { id: 'norms', label: '学术规范', icon: BookCheck },
 ]
 
 export function AIChatInput() {
   const [input, setInput] = useState('')
+  const [selectedMode, setSelectedMode] = useState<QuickModeId>('deep')
   const controllerRef = useRef<SSEController | null>(null)
   const handledCitationRequestIdRef = useRef<string | null>(null)
   const aiRunStatus = useWorkspaceStore(state => state.aiRunStatus)
@@ -54,15 +58,17 @@ export function AIChatInput() {
       return
     }
 
+    const modeInstruction = getModeInstruction(selectedMode)
     const instruction = mode === 'citation_enhance'
       ? '请对下方目标段落进行引用增强：在保持原意的前提下补充学术依据、引用线索和可被文献支撑的表述，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
       : '请根据用户需求改写下方目标段落，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
 
     const prompt = [
+      modeInstruction,
       instruction,
       `用户需求：${trimmedRequest}`,
       `目标段落：${targetBlock.content}`,
-    ].join('\n\n')
+    ].filter(Boolean).join('\n\n')
 
     controllerRef.current = connectSSE(prompt, {
       onSessionId: (sessionId) => setActiveSessionId(sessionId),
@@ -88,13 +94,14 @@ export function AIChatInput() {
       onError: (message) => {
         failAIRunWithFallback(message)
       },
-    }, activeSessionId ?? undefined)
+    }, activeSessionId ?? undefined, selectedMode === 'norms' ? 'norms' : undefined)
   }, [
     activeSessionId,
     appendGeneratedToken,
     failAIRunWithFallback,
     finishAIRunAsSuggestion,
     isGenerating,
+    selectedMode,
     setActiveSessionId,
     setAIStage,
     startAIRun,
@@ -140,15 +147,22 @@ export function AIChatInput() {
         <div className="flex items-center gap-2 border-t border-scholar-border px-3 py-2">
           {quickModes.map(mode => {
             const Icon = mode.icon
-            const isCitationEnhance = mode.label === '引用增强'
+            const isCitationEnhance = mode.id === 'citation'
+            const active = selectedMode === mode.id
             return (
               <button
                 key={mode.label}
-                className="flex items-center gap-1.5 rounded-lg border border-scholar-border px-2.5 py-1.5 text-xs font-medium text-scholar-text-secondary transition hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary"
+                type="button"
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? 'border-scholar-primary/40 bg-blue-50 text-scholar-primary'
+                    : 'border-scholar-border text-scholar-text-secondary hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary'
+                }`}
                 onClick={isCitationEnhance
                   ? () => runAIRequest('引用增强：请为当前段落补充学术依据和引用支撑。', 'citation_enhance', selectedBlockId ?? undefined)
-                  : undefined}
+                  : () => setSelectedMode(mode.id)}
                 disabled={isCitationEnhance && isGenerating}
+                aria-pressed={active}
               >
                 <Icon size={14} />
                 {mode.label}
@@ -180,4 +194,19 @@ export function AIChatInput() {
       </div>
     </div>
   )
+}
+
+function getModeInstruction(mode: QuickModeId): string {
+  switch (mode) {
+    case 'deep':
+      return '模式：深度思考。请优先分析论证结构、概念边界和潜在反例。'
+    case 'web':
+      return '模式：联网搜索意图。当前后端未接入实时公网搜索，请明确标注需要用户核验的外部事实。'
+    case 'graph':
+      return '模式：图谱检索。请优先结合已检索到的文献、研究空白和概念关系组织修改。'
+    case 'norms':
+      return '模式：学术规范。请依据学术写作、论文格式、引用规范和表达规范给出修改。'
+    case 'citation':
+      return ''
+  }
 }

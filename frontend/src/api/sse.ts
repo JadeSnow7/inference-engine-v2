@@ -21,12 +21,14 @@ export function connectSSE(
   message: string,
   handlers: SSEHandlers,
   sessionId?: string,
+  mode?: string,
 ): SSEController {
   const controller = new AbortController()
   const token = useUserStore.getState().token
 
   const body: Record<string, string> = { message }
   if (sessionId) body.session_id = sessionId
+  if (mode) body.mode = mode
 
   fetch(`${BASE_URL}/api/chat`, {
     method: 'POST',

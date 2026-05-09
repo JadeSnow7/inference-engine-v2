@@ -7,6 +7,7 @@ import type { WorkspaceSaveStatus } from '../../types/workspace'
 export function TopBar() {
   const userId = useUserStore(state => state.userId)
   const saveStatus = useWorkspaceStore(state => state.saveStatus)
+  const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-4 border-b border-scholar-border bg-white/90 px-5 shadow-sm backdrop-blur">
@@ -38,10 +39,18 @@ export function TopBar() {
         />
       </label>
 
-      <button className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary" aria-label="通知">
+      <button
+        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"
+        aria-label="通知"
+        onClick={() => setRestoreSessionNotice('暂无新通知')}
+      >
         <Bell size={18} />
       </button>
-      <button className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary" aria-label="帮助">
+      <button
+        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"
+        aria-label="帮助"
+        onClick={() => setRestoreSessionNotice('帮助：在文档中选中段落，然后使用底部 AI 输入框生成修改建议')}
+      >
         <CircleHelp size={18} />
       </button>
 
