@@ -8,6 +8,7 @@ system-output JSONL files and theta-sweep coverage after experiment runs.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -42,6 +43,7 @@ REQUIRED_SYSTEM_OUTPUT_FIELDS = (
 )
 THETA_VALUES = [0.50, 0.55, 0.60, 0.65, 0.70]
 DIMENSIONS = ("引用格式", "章节结构", "段落功能")
+REQUIRED_KG_NODE_TYPES = ("规范条款", "示例片段", "违例模式", "修改建议", "评价维度")
 
 
 @dataclass(frozen=True)
@@ -259,6 +261,31 @@ def validate_theta_sweep(root: Path, query_ids: set[str]) -> list[str]:
     return issues
 
 
+def validate_kg_node_counts(root: Path, *, require_completed: bool = False) -> list[str]:
+    path = root / "data/rq1_kg_quality/kg_node_counts.csv"
+    if not path.exists():
+        return [f"missing file: {path}"]
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    issues: list[str] = []
+    seen = {row.get("node_type", "") for row in rows}
+    for node_type in REQUIRED_KG_NODE_TYPES:
+        if node_type not in seen:
+            issues.append(f"kg_node_counts missing node_type: {node_type}")
+    for row in rows:
+        node_type = row.get("node_type", "")
+        try:
+            count = int(row.get("count", ""))
+        except ValueError:
+            issues.append(f"kg_node_counts:{node_type} count must be integer")
+            continue
+        if count < 0:
+            issues.append(f"kg_node_counts:{node_type} count must be non-negative")
+        if require_completed and row.get("audit_status") != "completed":
+            issues.append(f"kg_node_counts:{node_type} audit_status must be completed")
+    return issues
+
+
 def load_query_ids(root: Path) -> set[str]:
     queries = read_json(root / RQ2_DIR / "query_set.json")
     return {str(query["query_id"]) for query in queries if isinstance(query, dict) and "query_id" in query}
@@ -267,7 +294,7 @@ def load_query_ids(root: Path) -> set[str]:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--scope", choices=("query-set", "full"), default="query-set")
+    parser.add_argument("--scope", choices=("query-set", "full", "kg-counts"), default="query-set")
     return parser.parse_args(argv)
 
 
@@ -275,7 +302,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     root = args.root.resolve()
 
-    issues = validate_query_set(root)
+    if args.scope == "kg-counts":
+        issues = validate_kg_node_counts(root)
+    else:
+        issues = validate_query_set(root)
     if args.scope == "full" and not issues:
         query_ids = load_query_ids(root)
         issues.extend(validate_system_outputs(root, query_ids))

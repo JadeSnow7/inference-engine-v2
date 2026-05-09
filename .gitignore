@@ -6,6 +6,8 @@ __pycache__/
 *.log
 .claude/
 data/*
+!data/rq1_kg_quality/
+!data/rq1_kg_quality/**
 !data/rq2_traceability/
 !data/rq2_traceability/**
 secret/

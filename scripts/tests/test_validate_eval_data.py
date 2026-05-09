@@ -130,6 +130,27 @@ class ValidateEvalDataTest(unittest.TestCase):
 
             self.assertTrue(any("theta values" in issue for issue in issues))
 
+    def test_validates_pending_kg_node_counts_template(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_dir = tmp_path / "data" / "rq1_kg_quality"
+            data_dir.mkdir(parents=True)
+            (data_dir / "kg_node_counts.csv").write_text(
+                "\n".join([
+                    "node_type,count,audit_status,notes",
+                    "规范条款,0,pending,Replace count after manual audit.",
+                    "示例片段,0,pending,Replace count after manual audit.",
+                    "违例模式,0,pending,Replace count after manual audit.",
+                    "修改建议,0,pending,Replace count after manual audit.",
+                    "评价维度,0,pending,Replace count after manual audit.",
+                ]) + "\n",
+                encoding="utf-8",
+            )
+
+            issues = validate_eval_data.validate_kg_node_counts(tmp_path, require_completed=False)
+
+            self.assertEqual(issues, [])
+
 
 if __name__ == "__main__":
     unittest.main()
