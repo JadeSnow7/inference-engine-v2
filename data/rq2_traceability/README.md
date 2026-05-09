@@ -63,3 +63,19 @@ python3 scripts/validate_eval_data.py --scope full
 Rows created by this command contain `"run_type": "offline_stub"` and must not
 be reported as real LLM or GraphRAG experiment results. They exist to verify the
 data pipeline before real collection.
+
+## Replacing Offline Stub Data With Real Runs
+
+The offline runner is only a dry run. For thesis tables, replace the JSONL rows
+with real outputs from the deployed system or backend experiment harness. Keep
+the same schema and preserve raw logs separately if they contain no secrets or
+PII.
+
+Before using data in the thesis, run:
+
+```bash
+python3 scripts/validate_eval_data.py --scope full
+```
+
+Then summarize metrics in a separate analysis file instead of editing raw JSONL
+by hand.
