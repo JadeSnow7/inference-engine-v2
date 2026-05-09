@@ -22,6 +22,11 @@ async def config_status(request: Request):
                 "model": settings.MODEL_NAME,
             },
             "rag": rag_health,
+            "bailian_app": {
+                "enabled": settings.ENABLE_BAILIAN_APP,
+                "configured": bool(settings.DASHSCOPE_API_KEY and settings.DASHSCOPE_APP_ID),
+                "purpose": "academic_norms",
+            },
             "local_rag_enabled": settings.ENABLE_LOCAL_RAG,
         }
     )

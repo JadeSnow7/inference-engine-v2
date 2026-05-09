@@ -33,6 +33,9 @@ class ConversationManager:
     def _index_key(self, user_id: str) -> str:
         return f"sessions:{user_id}"
 
+    def _bailian_session_key(self, user_id: str, session_id: str) -> str:
+        return f"bailian:session:{user_id}:{session_id}"
+
     def _make_title(self, initial_message: str) -> str:
         title = " ".join(initial_message.split()).strip()
         return title[:40] if title else "新会话"
@@ -114,8 +117,16 @@ class ConversationManager:
         if len(filtered) == len(sessions):
             return False
         await self.redis_client.delete(self._history_key(user_id, session_id))
+        await self.redis_client.delete(self._bailian_session_key(user_id, session_id))
         await self._save_index(user_id, filtered)
         return True
+
+    async def get_bailian_app_session(self, user_id: str, session_id: str) -> Optional[str]:
+        return await self.redis_client.get(self._bailian_session_key(user_id, session_id))
+
+    async def save_bailian_app_session(self, user_id: str, session_id: str, app_session_id: str) -> None:
+        if app_session_id:
+            await self.redis_client.set(self._bailian_session_key(user_id, session_id), app_session_id, ttl=86400 * 7)
 
     def _estimate_tokens(self, hist: list[dict]) -> int:
         return sum(len(m["content"]) // 2 for m in hist)

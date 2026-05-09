@@ -13,6 +13,8 @@ except ImportError:  # pragma: no cover - local fallback for environments withou
 class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    DASHSCOPE_APP_ID: str = ""
+    ENABLE_BAILIAN_APP: bool = False
     MODEL_NAME: str = "qwen3.6-plus"
     SECRET_KEY: str = Field(default="", validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET")) if Field else ""
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -32,6 +34,8 @@ class Settings(BaseSettings):
         if BaseSettings is object:
             self.DASHSCOPE_API_KEY = os.environ["DASHSCOPE_API_KEY"]
             self.DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", self.DASHSCOPE_BASE_URL)
+            self.DASHSCOPE_APP_ID = os.getenv("DASHSCOPE_APP_ID", self.DASHSCOPE_APP_ID)
+            self.ENABLE_BAILIAN_APP = os.getenv("ENABLE_BAILIAN_APP", "0").lower() in {"1", "true", "yes", "on"}
             self.MODEL_NAME = os.getenv("MODEL_NAME", self.MODEL_NAME)
             self.SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("JWT_SECRET") or ""
             if not self.SECRET_KEY:

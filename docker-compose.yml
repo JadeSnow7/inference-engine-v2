@@ -15,6 +15,10 @@ services:
       RAG_PROVIDER: ${RAG_PROVIDER:-disabled}
       DASHSCOPE_KNOWLEDGE_BASE_ID: ${DASHSCOPE_KNOWLEDGE_BASE_ID:-}
       DASHSCOPE_RAG_MODEL: ${DASHSCOPE_RAG_MODEL:-qwen3.6-plus}
+      DASHSCOPE_APP_ID: ${DASHSCOPE_APP_ID:-}
+      ENABLE_BAILIAN_APP: ${ENABLE_BAILIAN_APP:-0}
+      NO_PROXY: localhost,127.0.0.1,172.17.0.1,redis,backend,frontend,mirrors.aliyun.com,.aliyun.com,.aliyuncs.com
+      no_proxy: localhost,127.0.0.1,172.17.0.1,redis,backend,frontend,mirrors.aliyun.com,.aliyun.com,.aliyuncs.com
     depends_on:
       - redis
     volumes:

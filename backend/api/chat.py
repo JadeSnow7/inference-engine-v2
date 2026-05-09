@@ -6,6 +6,7 @@ from typing import Optional
 from api.auth import get_current_user_id
 from api.responses import ok
 from core.loop import main_loop
+from core.norms import norms_loop
 from profile.models import UserProfile, from_survey
 
 router = APIRouter()
@@ -14,6 +15,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    mode: Optional[str] = None
 
 
 class ProfileInitRequest(BaseModel):
@@ -27,8 +29,13 @@ class ProfileInitRequest(BaseModel):
 async def chat(req: ChatRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     app_state = request.app.state
     session_id = await app_state.conv_manager.ensure_session(user_id, req.session_id, req.message)
+    stream = (
+        norms_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store)
+        if (req.mode or "").strip().lower() == "norms"
+        else main_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag)
+    )
     return StreamingResponse(
-        main_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag),
+        stream,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -98,4 +105,3 @@ async def patch_profile(request: Request, user_id: str = Depends(get_current_use
             profile[k] = v
     await request.app.state.profile_store.set(user_id, UserProfile.from_dict(profile))
     return ok({"updated": True})
-

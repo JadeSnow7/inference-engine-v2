@@ -7,6 +7,7 @@ class EventType(str, Enum):
     STAGE = "stage"
     PAPERS = "papers"
     GAPS = "gaps"
+    REFERENCES = "references"
     TOKEN = "token"
     DONE = "done"
     ERROR = "error"
@@ -32,4 +33,3 @@ def extract_token(raw_sse: str) -> str:
     except Exception:
         pass
     return ""
-
