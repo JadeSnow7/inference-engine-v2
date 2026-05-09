@@ -87,3 +87,10 @@ only. It is intentionally blocked for `--real` until backend retrieval,
 generation, and binding functions are wired. Run it once per method and redirect
 stdout to the matching `system_outputs/{method}.jsonl` file. Use it to verify
 method naming and CLI shape, not to collect thesis results yet.
+
+## Norm Node Corpus
+
+`norm_nodes.json` is a compact thesis-aligned norm-node corpus for RQ2
+real-system collection. It maps the query-set expected reference nodes to five
+node categories used in the thesis. Replace or expand it with the audited KG
+after P0-A is completed.
