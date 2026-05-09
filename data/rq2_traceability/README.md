@@ -79,3 +79,11 @@ python3 scripts/validate_eval_data.py --scope full
 
 Then summarize metrics in a separate analysis file instead of editing raw JSONL
 by hand.
+
+## Real System Harness
+
+`scripts/run_rq2_real.py` currently provides method definitions and dry-run rows
+only. It is intentionally blocked for `--real` until backend retrieval,
+generation, and binding functions are wired. Run it once per method and redirect
+stdout to the matching `system_outputs/{method}.jsonl` file. Use it to verify
+method naming and CLI shape, not to collect thesis results yet.
