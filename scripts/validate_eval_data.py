@@ -30,6 +30,16 @@ TRACEABILITY_METHOD_FILES = {
     "ablation_no_expand": "ablation_no_expand.jsonl",
     "full_graphrag": "full_graphrag.jsonl",
 }
+REQUIRED_SYSTEM_OUTPUT_FIELDS = (
+    "method",
+    "query_id",
+    "retrieved_nodes",
+    "generated_refs",
+    "validation_results",
+    "low_confidence_refs",
+    "feedback_structure_complete",
+    "theta_used",
+)
 THETA_VALUES = [0.50, 0.55, 0.60, 0.65, 0.70]
 DIMENSIONS = ("引用格式", "章节结构", "段落功能")
 
@@ -204,9 +214,21 @@ def validate_system_outputs(root: Path, query_ids: set[str]) -> list[str]:
             row_id = row.get("query_id", "<missing>")
             if row.get("method") != method:
                 issues.append(f"{filename}:{row_id} method must be '{method}'")
-            for field in ("retrieved_nodes", "generated_refs", "validation_results", "feedback_structure_complete"):
+            for field in REQUIRED_SYSTEM_OUTPUT_FIELDS:
                 if field not in row:
                     issues.append(f"{filename}:{row_id} missing field: {field}")
+            if not isinstance(row.get("retrieved_nodes"), list):
+                issues.append(f"{filename}:{row_id} retrieved_nodes must be a list")
+            if not isinstance(row.get("generated_refs"), list):
+                issues.append(f"{filename}:{row_id} generated_refs must be a list")
+            if not isinstance(row.get("validation_results"), dict):
+                issues.append(f"{filename}:{row_id} validation_results must be an object")
+            if not isinstance(row.get("low_confidence_refs"), list):
+                issues.append(f"{filename}:{row_id} low_confidence_refs must be a list")
+            if not isinstance(row.get("feedback_structure_complete"), bool):
+                issues.append(f"{filename}:{row_id} feedback_structure_complete must be boolean")
+            if not isinstance(row.get("theta_used"), (int, float)):
+                issues.append(f"{filename}:{row_id} theta_used must be numeric")
     return issues
 
 

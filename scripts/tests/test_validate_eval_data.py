@@ -86,6 +86,50 @@ class ValidateEvalDataTest(unittest.TestCase):
 
             self.assertEqual([row["query_id"] for row in rows], ["Q001", "Q002"])
 
+    def test_full_gate_reports_bad_theta_sweep(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_dir = tmp_path / "data" / "rq2_traceability"
+            outputs_dir = data_dir / "system_outputs"
+            outputs_dir.mkdir(parents=True)
+            query = {
+                "query_id": "Q001",
+                "text": " ".join(["This synthetic paragraph discusses academic writing structure."] * 25),
+                "ground_truth_issues": ["引用格式-APA"],
+                "expected_ref_nodes": ["NRM-APA-001"],
+                "has_known_issue": True,
+            }
+            (data_dir / "query_set.json").write_text(json.dumps([query]), encoding="utf-8")
+            row = {
+                "method": "full_graphrag",
+                "query_id": "Q001",
+                "retrieved_nodes": [],
+                "generated_refs": [],
+                "validation_results": {},
+                "feedback_structure_complete": True,
+            }
+            for method, filename in validate_eval_data.TRACEABILITY_METHOD_FILES.items():
+                method_row = dict(row)
+                method_row["method"] = method
+                (outputs_dir / filename).write_text(json.dumps(method_row) + "\n", encoding="utf-8")
+            (data_dir / "theta_sweep.jsonl").write_text(
+                json.dumps({"query_id": "Q001", "theta_sweep": [{"theta": 0.6}], "downgrade_trigger_count": 0}) + "\n",
+                encoding="utf-8",
+            )
+
+            query_issues = validate_eval_data.validate_query_set(
+                tmp_path,
+                min_queries=1,
+                min_controls=0,
+                min_dimension_coverage=0,
+                word_min=20,
+                word_max=300,
+            )
+            self.assertEqual(query_issues, [])
+            issues = validate_eval_data.validate_theta_sweep(tmp_path, {"Q001"})
+
+            self.assertTrue(any("theta values" in issue for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()
