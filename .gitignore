@@ -5,7 +5,9 @@ __pycache__/
 .env
 *.log
 .claude/
-data/
+data/*
+!data/rq2_traceability/
+!data/rq2_traceability/**
 secret/
 node_modules/
 dist/
