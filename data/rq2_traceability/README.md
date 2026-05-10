@@ -94,3 +94,8 @@ method naming and CLI shape, not to collect thesis results yet.
 real-system collection. It maps the query-set expected reference nodes to five
 node categories used in the thesis. Replace or expand it with the audited KG
 after P0-A is completed.
+
+## KG Corpus Update Log
+- 2026-05-10: Expanded the RQ2 norm-node corpus to 107 nodes across 5 node types and 3 dimensions.
+  - 规范条款: 45  示例片段: 18  违例模式: 19  修改建议: 18  评价维度: 7
+  - 引用格式: 35  章节结构: 36  段落功能: 36

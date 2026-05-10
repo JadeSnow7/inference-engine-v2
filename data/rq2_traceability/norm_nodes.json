@@ -1,26 +1,1084 @@
 [
-  {"node_id":"NRM-APA-001","node_type":"规范条款","dimension":"引用格式","text":"APA in-text citation should use author-date form and distinguish narrative citation from parenthetical citation.","related":["NRM-APA-002","NRM-CIT-CLAIM-001"]},
-  {"node_id":"NRM-APA-002","node_type":"规范条款","dimension":"引用格式","text":"Publication years should be placed in parentheses when required by APA citation syntax.","related":["NRM-APA-001"]},
-  {"node_id":"NRM-CIT-CLAIM-001","node_type":"规范条款","dimension":"引用格式","text":"Every empirical or quantitative claim should be attached to a specific and verifiable source.","related":["NRM-CIT-TRACE-001","NRM-CIT-SCOPE-001"]},
-  {"node_id":"NRM-GBT-001","node_type":"规范条款","dimension":"引用格式","text":"GB/T numbered references should correspond to complete bibliography entries with author title year and source type.","related":["NRM-CIT-TRACE-001"]},
-  {"node_id":"NRM-CIT-TRACE-001","node_type":"评价维度","dimension":"引用格式","text":"Citation feedback should evaluate whether a reader can trace a claim to a concrete source.","related":["NRM-GBT-001","NRM-CIT-CLAIM-001"]},
-  {"node_id":"NRM-CIT-SCOPE-001","node_type":"违例模式","dimension":"引用格式","text":"A single broad citation at the end of a paragraph should not hide multiple unsupported literature claims.","related":["NRM-CIT-CLAIM-001"]},
-  {"node_id":"STR-ABS-001","node_type":"规范条款","dimension":"章节结构","text":"An abstract should state problem objective method evaluation result and contribution in a coherent sequence.","related":["STR-ABS-ORDER-001"]},
-  {"node_id":"STR-ABS-ORDER-001","node_type":"违例模式","dimension":"章节结构","text":"Abstract elements are weak when solution and implementation details appear before the research problem and objective.","related":["STR-ABS-001"]},
-  {"node_id":"STR-INTRO-GAP-001","node_type":"规范条款","dimension":"章节结构","text":"An introduction should move from background to problem to research gap before presenting the contribution.","related":["STR-INTRO-CONTRIB-001"]},
-  {"node_id":"STR-INTRO-CONTRIB-001","node_type":"规范条款","dimension":"章节结构","text":"The contribution statement should answer the identified research gap rather than only list product features.","related":["STR-INTRO-GAP-001"]},
-  {"node_id":"STR-IMRAD-001","node_type":"规范条款","dimension":"章节结构","text":"IMRAD writing should keep method procedure separate from results and discussion interpretation.","related":["PARA-METHOD-001","PARA-RESULT-PLACE-001"]},
-  {"node_id":"PARA-RESULT-PLACE-001","node_type":"违例模式","dimension":"段落功能","text":"Result claims should appear in the results section rather than inside the method description.","related":["STR-IMRAD-001","PARA-RESULT-001"]},
-  {"node_id":"STR-RESULT-001","node_type":"规范条款","dimension":"章节结构","text":"The results section should report measured experimental outcomes instead of repeating interface design details.","related":["STR-EVAL-METRIC-001"]},
-  {"node_id":"STR-EVAL-METRIC-001","node_type":"评价维度","dimension":"章节结构","text":"Evaluation results should include metrics such as node existence rate threshold pass rate and feedback completion.","related":["STR-RESULT-001"]},
-  {"node_id":"STR-CONC-001","node_type":"规范条款","dimension":"章节结构","text":"A conclusion should synthesize established findings and avoid introducing new unsupported claims.","related":["STR-LIMIT-001"]},
-  {"node_id":"STR-LIMIT-001","node_type":"规范条款","dimension":"章节结构","text":"Limitations should state what the study cannot prove and define boundaries for interpretation.","related":["PARA-LIMIT-001","STR-CONC-001"]},
-  {"node_id":"PARA-BKG-001","node_type":"规范条款","dimension":"段落功能","text":"A background paragraph should establish the educational or research context before technical implementation details.","related":["PARA-FUNC-ORDER-001"]},
-  {"node_id":"PARA-FUNC-ORDER-001","node_type":"修改建议","dimension":"段落功能","text":"Paragraphs should sequence context problem and technical response so readers understand why the design is needed.","related":["PARA-BKG-001"]},
-  {"node_id":"PARA-METHOD-001","node_type":"规范条款","dimension":"段落功能","text":"A method paragraph should describe data procedure configuration and metrics so another researcher can reproduce the study.","related":["STR-IMRAD-001"]},
-  {"node_id":"PARA-RESULT-001","node_type":"规范条款","dimension":"段落功能","text":"A result paragraph should report measured findings with numbers comparisons and concise interpretation.","related":["PARA-TOPIC-001","PARA-RESULT-PLACE-001"]},
-  {"node_id":"PARA-TOPIC-001","node_type":"修改建议","dimension":"段落功能","text":"A paragraph should use a clear topic sentence and keep sentence roles aligned with its main function.","related":["PARA-RESULT-001"]},
-  {"node_id":"PARA-DISCUSS-001","node_type":"规范条款","dimension":"段落功能","text":"A discussion paragraph should interpret findings rather than merely repeat numerical results.","related":["PARA-INTERPRET-001"]},
-  {"node_id":"PARA-INTERPRET-001","node_type":"修改建议","dimension":"段落功能","text":"Discussion should explain mechanisms implications and constraints without inventing new experimental data.","related":["PARA-DISCUSS-001"]},
-  {"node_id":"PARA-LIMIT-001","node_type":"规范条款","dimension":"段落功能","text":"A limitation paragraph should clearly state evidence boundaries and future work instead of promotional claims.","related":["STR-LIMIT-001"]}
+  {
+    "node_id": "NRM-APA-001",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "APA in-text citation should use author-date form and clearly distinguish narrative citation from parenthetical citation within the sentence context.",
+    "related": [
+      "NRM-APA-002",
+      "NRM-CIT-CLAIM-001"
+    ]
+  },
+  {
+    "node_id": "NRM-APA-002",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Publication years should be placed in parentheses when required by APA citation syntax and kept consistent across repeated source mentions.",
+    "related": [
+      "NRM-APA-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-CLAIM-001",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Every empirical or quantitative claim should be attached to a specific and verifiable source within the same paragraph.",
+    "related": [
+      "NRM-CIT-TRACE-001",
+      "NRM-CIT-SCOPE-001"
+    ]
+  },
+  {
+    "node_id": "NRM-GBT-001",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "GB/T numbered references should correspond to complete bibliography entries with author title year and source type.",
+    "related": [
+      "NRM-CIT-TRACE-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-TRACE-001",
+    "node_type": "评价维度",
+    "dimension": "引用格式",
+    "text": "Citation feedback should evaluate whether a reader can trace a claim to a concrete source.",
+    "related": [
+      "NRM-GBT-001",
+      "NRM-CIT-CLAIM-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-SCOPE-001",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "A single broad citation at the end of a paragraph should not hide multiple unsupported literature claims.",
+    "related": [
+      "NRM-CIT-CLAIM-001"
+    ]
+  },
+  {
+    "node_id": "STR-ABS-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "An abstract should state problem objective method evaluation result and contribution in a coherent sequence.",
+    "related": [
+      "STR-ABS-ORDER-001"
+    ]
+  },
+  {
+    "node_id": "STR-ABS-ORDER-001",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "Abstract elements are weak when solution and implementation details appear before the research problem and objective.",
+    "related": [
+      "STR-ABS-001"
+    ]
+  },
+  {
+    "node_id": "STR-INTRO-GAP-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "An introduction should move from background to problem to research gap before presenting the contribution.",
+    "related": [
+      "STR-INTRO-CONTRIB-001"
+    ]
+  },
+  {
+    "node_id": "STR-INTRO-CONTRIB-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "The contribution statement should answer the identified research gap rather than only list product features.",
+    "related": [
+      "STR-INTRO-GAP-001"
+    ]
+  },
+  {
+    "node_id": "STR-IMRAD-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "IMRAD writing should keep method procedure separate from results and discussion interpretation in every manuscript section.",
+    "related": [
+      "PARA-METHOD-001",
+      "PARA-RESULT-PLACE-001"
+    ]
+  },
+  {
+    "node_id": "PARA-RESULT-PLACE-001",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "Result claims should appear in the results section rather than inside the method description where readers expect evidence.",
+    "related": [
+      "STR-IMRAD-001",
+      "PARA-RESULT-001"
+    ]
+  },
+  {
+    "node_id": "STR-RESULT-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "The results section should report measured experimental outcomes instead of repeating interface design details or implementation rationale.",
+    "related": [
+      "STR-EVAL-METRIC-001"
+    ]
+  },
+  {
+    "node_id": "STR-EVAL-METRIC-001",
+    "node_type": "评价维度",
+    "dimension": "章节结构",
+    "text": "Evaluation results should include metrics such as node existence rate threshold pass rate and feedback completion.",
+    "related": [
+      "STR-RESULT-001"
+    ]
+  },
+  {
+    "node_id": "STR-CONC-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A conclusion should synthesize established findings and avoid introducing new unsupported claims beyond the reported evidence.",
+    "related": [
+      "STR-LIMIT-001"
+    ]
+  },
+  {
+    "node_id": "STR-LIMIT-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "Limitations should state what the study cannot prove and define boundaries for interpretation and later generalization.",
+    "related": [
+      "PARA-LIMIT-001",
+      "STR-CONC-001"
+    ]
+  },
+  {
+    "node_id": "PARA-BKG-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A background paragraph should establish the educational or research context before technical implementation details or system architecture choices.",
+    "related": [
+      "PARA-FUNC-ORDER-001"
+    ]
+  },
+  {
+    "node_id": "PARA-FUNC-ORDER-001",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "Paragraphs should sequence context problem and technical response so readers understand why the design is needed.",
+    "related": [
+      "PARA-BKG-001"
+    ]
+  },
+  {
+    "node_id": "PARA-METHOD-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A method paragraph should describe data procedure configuration and metrics so another researcher can reproduce the study.",
+    "related": [
+      "STR-IMRAD-001"
+    ]
+  },
+  {
+    "node_id": "PARA-RESULT-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A result paragraph should report measured findings with numbers comparisons and concise interpretation tied to the stated evaluation question.",
+    "related": [
+      "PARA-TOPIC-001",
+      "PARA-RESULT-PLACE-001"
+    ]
+  },
+  {
+    "node_id": "PARA-TOPIC-001",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "A paragraph should use a clear topic sentence and keep sentence roles aligned with its main function.",
+    "related": [
+      "PARA-RESULT-001"
+    ]
+  },
+  {
+    "node_id": "PARA-DISCUSS-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A discussion paragraph should interpret findings rather than merely repeat numerical results without adding unsupported methodological claims.",
+    "related": [
+      "PARA-INTERPRET-001"
+    ]
+  },
+  {
+    "node_id": "PARA-INTERPRET-001",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "Discussion should explain mechanisms implications and constraints without inventing new experimental data or overstating causal conclusions.",
+    "related": [
+      "PARA-DISCUSS-001"
+    ]
+  },
+  {
+    "node_id": "PARA-LIMIT-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A limitation paragraph should clearly state evidence boundaries and future work instead of promotional claims.",
+    "related": [
+      "STR-LIMIT-001"
+    ]
+  },
+  {
+    "node_id": "DIM-CIT-001",
+    "node_type": "评价维度",
+    "dimension": "引用格式",
+    "text": "Citation format quality should be judged by traceability, style consistency, source completeness, and the proximity between claims and supporting references.",
+    "related": [
+      "NRM-CIT-CLAIM-001",
+      "NRM-CIT-011",
+      "NRM-CIT-TRACE-001"
+    ]
+  },
+  {
+    "node_id": "DIM-STR-001",
+    "node_type": "评价维度",
+    "dimension": "章节结构",
+    "text": "Section structure quality should be judged by functional boundaries, expected rhetorical order, evidence placement, and consistency with IMRAD conventions.",
+    "related": [
+      "STR-IMRAD-001",
+      "NRM-STR-001",
+      "NRM-STR-008"
+    ]
+  },
+  {
+    "node_id": "DIM-PARA-001",
+    "node_type": "评价维度",
+    "dimension": "段落功能",
+    "text": "Paragraph function quality should be judged by topic sentence clarity, sentence-role alignment, and whether one paragraph performs one dominant role.",
+    "related": [
+      "PARA-TOPIC-001",
+      "NRM-PARA-001",
+      "NRM-PARA-009"
+    ]
+  },
+  {
+    "node_id": "DIM-PARA-002",
+    "node_type": "评价维度",
+    "dimension": "段落功能",
+    "text": "Paragraph completeness quality should be judged by cohesion, sufficient evidence, logical sequencing, and closure that supports the paragraph purpose.",
+    "related": [
+      "NRM-PARA-007",
+      "NRM-PARA-008",
+      "PARA-FUNC-ORDER-001"
+    ]
+  },
+  {
+    "node_id": "DIM-STR-002",
+    "node_type": "评价维度",
+    "dimension": "章节结构",
+    "text": "Research-report organization should be evaluated by whether each section answers its expected question without borrowing functions from neighboring sections.",
+    "related": [
+      "STR-IMRAD-001",
+      "STR-RESULT-001",
+      "STR-CONC-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-001",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "APA narrative citations should place the author in the sentence grammar and the year in parentheses near the cited claim.",
+    "related": [
+      "NRM-APA-001",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-002",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "APA parenthetical citations should place author and year together in parentheses after the paraphrased claim or sentence segment.",
+    "related": [
+      "NRM-APA-001",
+      "NRM-CIT-001",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-003",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "When paraphrasing a source, the writer must still cite the original author using the appropriate in-text citation format.",
+    "related": [
+      "NRM-CIT-CLAIM-001",
+      "NRM-CIT-001",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-004",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Direct quotations should use quotation marks, include an in-text citation, and provide a page, paragraph, or locator when available.",
+    "related": [
+      "NRM-APA-001",
+      "ERR-CIT-004",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-005",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Secondary citations should identify the original work in the prose and cite the consulted source with an as-cited-in formulation.",
+    "related": [
+      "NRM-CIT-003",
+      "ERR-CIT-005",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-006",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "APA journal article references should include authors, year, article title, journal title, volume, issue, page range, and DOI when available.",
+    "related": [
+      "NRM-APA-002",
+      "NRM-CIT-011",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-007",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "APA book references should include authors, publication year, italicized title, edition when relevant, publisher, and DOI or URL if available.",
+    "related": [
+      "NRM-APA-002",
+      "NRM-CIT-011",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-008",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Conference paper references should identify the authors, year, paper title, conference name, location or publisher, page range, and persistent link.",
+    "related": [
+      "NRM-CIT-006",
+      "NRM-CIT-011",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-009",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Web resource references should provide author, date, page title, website name, URL, and retrieval date when content is designed to change.",
+    "related": [
+      "NRM-CIT-011",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-010",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "GB/T 7714 sequential coding should assign bracketed numbers by citation order and match each number to one bibliography entry.",
+    "related": [
+      "NRM-GBT-001",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-CIT-011",
+    "node_type": "规范条款",
+    "dimension": "引用格式",
+    "text": "Reference lists should use one citation style consistently, sort entries according to that style, and disambiguate same-author same-year works with suffixes.",
+    "related": [
+      "NRM-APA-002",
+      "NRM-GBT-001",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-001",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "Smith (2020) argues that feedback timing influences revision quality, which demonstrates a narrative APA citation embedded in the sentence.",
+    "related": [
+      "NRM-CIT-001",
+      "NRM-APA-001"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-002",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "Feedback timing can influence revision quality when students receive comments before drafting is complete (Smith, 2020).",
+    "related": [
+      "NRM-CIT-002",
+      "NRM-CIT-003"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-003",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "The sentence reports a direct phrase as quoted language and places the author, year, and page number immediately after it.",
+    "related": [
+      "NRM-CIT-004"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-004",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "A journal reference lists the author group, year, article title, journal title, volume, issue, pages, and DOI in one entry.",
+    "related": [
+      "NRM-CIT-006",
+      "NRM-CIT-011"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-005",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "In GB/T sequential style, the first cited source appears as bracketed number one and the bibliography begins with that same entry.",
+    "related": [
+      "NRM-CIT-010",
+      "NRM-GBT-001"
+    ]
+  },
+  {
+    "node_id": "EX-CIT-006",
+    "node_type": "示例片段",
+    "dimension": "引用格式",
+    "text": "A secondary citation names the original theory in prose while the parenthetical citation identifies the source that the writer actually read.",
+    "related": [
+      "NRM-CIT-005"
+    ]
+  },
+  {
+    "node_id": "ERR-CIT-001",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "The paragraph ends with one broad citation even though it contains separate claims about adoption rate, learning effect, and model accuracy.",
+    "related": [
+      "NRM-CIT-CLAIM-001",
+      "SUG-CIT-001",
+      "NRM-CIT-SCOPE-001"
+    ]
+  },
+  {
+    "node_id": "ERR-CIT-002",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "The manuscript uses an in-text citation for a study, but the reference list contains no matching bibliography entry.",
+    "related": [
+      "NRM-CIT-011",
+      "SUG-CIT-002"
+    ]
+  },
+  {
+    "node_id": "ERR-CIT-003",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "The in-text citation follows APA author-date style while the bibliography uses numbered GB/T entries, creating a mixed citation system.",
+    "related": [
+      "NRM-CIT-011",
+      "SUG-CIT-003"
+    ]
+  },
+  {
+    "node_id": "ERR-CIT-004",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "A sentence copies distinctive wording from a source but presents it without quotation marks, locator information, or direct quotation formatting.",
+    "related": [
+      "NRM-CIT-004",
+      "SUG-CIT-004"
+    ]
+  },
+  {
+    "node_id": "ERR-CIT-005",
+    "node_type": "违例模式",
+    "dimension": "引用格式",
+    "text": "The text cites a classic author through another paper but does not reveal that the original source was not consulted.",
+    "related": [
+      "NRM-CIT-005",
+      "SUG-CIT-005"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-001",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Attach citations to individual empirical claims, and split the paragraph when different evidence streams support different statements.",
+    "related": [
+      "ERR-CIT-001",
+      "NRM-CIT-CLAIM-001"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-002",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Add a complete reference entry for every in-text citation or remove the citation when the source cannot be verified.",
+    "related": [
+      "ERR-CIT-002",
+      "NRM-CIT-011"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-003",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Choose one citation style for the manuscript and revise both in-text citations and bibliography entries to match it.",
+    "related": [
+      "ERR-CIT-003",
+      "NRM-CIT-011"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-004",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Convert copied wording into a marked direct quotation, add a locator, or paraphrase it fully with a normal citation.",
+    "related": [
+      "ERR-CIT-004",
+      "NRM-CIT-004"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-005",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Use an as-cited-in phrase for secondary citation and list only the consulted source in the reference list unless required otherwise.",
+    "related": [
+      "ERR-CIT-005",
+      "NRM-CIT-005"
+    ]
+  },
+  {
+    "node_id": "SUG-CIT-006",
+    "node_type": "修改建议",
+    "dimension": "引用格式",
+    "text": "Normalize the reference list by sorting entries, completing missing fields, and resolving same-author same-year ambiguity before final submission.",
+    "related": [
+      "NRM-CIT-011",
+      "DIM-CIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-001",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "IMRAD sections should maintain functional boundaries so methods explain procedure, results present findings, and discussion interprets those findings.",
+    "related": [
+      "STR-IMRAD-001",
+      "DIM-STR-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-002",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "An abstract should concisely state the research problem, objective, method, key result, and conclusion in a reader-oriented sequence.",
+    "related": [
+      "STR-ABS-001",
+      "DIM-STR-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-003",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "An introduction should establish background, identify a research gap, explain why it matters, and then state the study contribution.",
+    "related": [
+      "STR-INTRO-GAP-001",
+      "STR-INTRO-CONTRIB-001",
+      "DIM-STR-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-004",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A methods section should provide enough data, procedure, implementation configuration, and evaluation metric detail for another researcher to reproduce the work.",
+    "related": [
+      "PARA-METHOD-001",
+      "NRM-STR-001",
+      "DIM-STR-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-005",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A results section should present measured outcomes, tables, and comparisons without shifting into broad interpretation or literature explanation.",
+    "related": [
+      "STR-RESULT-001",
+      "NRM-STR-001",
+      "DIM-STR-002"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-006",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A discussion section should explain findings, compare them with prior literature, identify mechanisms, and acknowledge limitations or boundary conditions.",
+    "related": [
+      "NRM-STR-005",
+      "STR-LIMIT-001",
+      "DIM-STR-002"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-007",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A conclusion should synthesize verified findings, answer the research objective, and avoid introducing new claims not supported by earlier sections.",
+    "related": [
+      "STR-CONC-001",
+      "NRM-STR-008",
+      "DIM-STR-001"
+    ]
+  },
+  {
+    "node_id": "NRM-STR-008",
+    "node_type": "规范条款",
+    "dimension": "章节结构",
+    "text": "A limitation statement should define evidence boundaries, sample constraints, measurement constraints, and conditions under which findings should not be generalized.",
+    "related": [
+      "STR-LIMIT-001",
+      "NRM-STR-006",
+      "DIM-STR-002"
+    ]
+  },
+  {
+    "node_id": "EX-STR-001",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The abstract first identifies the feedback problem, then names the retrieval method, reports evaluation gains, and closes with the study contribution.",
+    "related": [
+      "NRM-STR-002",
+      "STR-ABS-001"
+    ]
+  },
+  {
+    "node_id": "EX-STR-002",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The introduction moves from writing-feedback research to an unresolved traceability gap before presenting the proposed graph-based contribution.",
+    "related": [
+      "NRM-STR-003",
+      "STR-INTRO-GAP-001"
+    ]
+  },
+  {
+    "node_id": "EX-STR-003",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The methods section specifies the query set, norm-node corpus, retrieval settings, threshold values, and scoring procedure for replication.",
+    "related": [
+      "NRM-STR-004",
+      "PARA-METHOD-001"
+    ]
+  },
+  {
+    "node_id": "EX-STR-004",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The results section reports that one method retrieved more valid reference nodes than another under the same threshold setting.",
+    "related": [
+      "NRM-STR-005",
+      "STR-RESULT-001"
+    ]
+  },
+  {
+    "node_id": "EX-STR-005",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The discussion explains why graph expansion improved traceability and relates the pattern to earlier work on structured feedback.",
+    "related": [
+      "NRM-STR-006"
+    ]
+  },
+  {
+    "node_id": "EX-STR-006",
+    "node_type": "示例片段",
+    "dimension": "章节结构",
+    "text": "The conclusion summarizes verified retrieval gains and states that broader classroom effectiveness remains outside the current evidence boundary.",
+    "related": [
+      "NRM-STR-007",
+      "NRM-STR-008"
+    ]
+  },
+  {
+    "node_id": "ERR-STR-001",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "The methods section reports final accuracy and pass-rate improvements before explaining the dataset, settings, or evaluation procedure.",
+    "related": [
+      "NRM-STR-004",
+      "SUG-STR-001"
+    ]
+  },
+  {
+    "node_id": "ERR-STR-002",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "The abstract spends most sentences on implementation details while omitting the research problem, principal result, and conclusion.",
+    "related": [
+      "NRM-STR-002",
+      "SUG-STR-002",
+      "STR-ABS-ORDER-001"
+    ]
+  },
+  {
+    "node_id": "ERR-STR-003",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "The conclusion claims a teaching-effectiveness improvement that was never tested in the reported experiment or supported by earlier results.",
+    "related": [
+      "NRM-STR-007",
+      "SUG-STR-005"
+    ]
+  },
+  {
+    "node_id": "ERR-STR-004",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "The discussion repeats metric values from the results section but never explains mechanisms, implications, contradictions, or limitations.",
+    "related": [
+      "NRM-STR-006",
+      "SUG-STR-004"
+    ]
+  },
+  {
+    "node_id": "ERR-STR-005",
+    "node_type": "违例模式",
+    "dimension": "章节结构",
+    "text": "The introduction lists tool features immediately after background without defining a research gap or explaining the scholarly contribution.",
+    "related": [
+      "NRM-STR-003",
+      "SUG-STR-003"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-001",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Move measured outcomes from the methods section into results, and keep methods focused on data, procedure, configuration, and metrics.",
+    "related": [
+      "ERR-STR-001",
+      "NRM-STR-004",
+      "NRM-STR-005"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-002",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Rewrite the abstract around problem, objective, method, result, and conclusion before adding only essential implementation detail.",
+    "related": [
+      "ERR-STR-002",
+      "NRM-STR-002"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-003",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Add a research gap sentence and connect the contribution statement directly to that gap instead of listing functions.",
+    "related": [
+      "ERR-STR-005",
+      "NRM-STR-003"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-004",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Separate result reporting from discussion by moving numbers to results and reserving discussion for explanation and literature connection.",
+    "related": [
+      "ERR-STR-004",
+      "NRM-STR-005",
+      "NRM-STR-006"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-005",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Revise the conclusion so it only synthesizes tested findings, states implications cautiously, and avoids new unverified claims.",
+    "related": [
+      "ERR-STR-003",
+      "NRM-STR-007"
+    ]
+  },
+  {
+    "node_id": "SUG-STR-006",
+    "node_type": "修改建议",
+    "dimension": "章节结构",
+    "text": "Add a limitations sentence that names sample scope, measurement constraints, and evidence boundaries before proposing future work.",
+    "related": [
+      "NRM-STR-008",
+      "STR-LIMIT-001"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-001",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A paragraph should open with a topic sentence that identifies its main claim, function, or contribution to the section.",
+    "related": [
+      "PARA-TOPIC-001",
+      "DIM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-002",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A background paragraph should define the research context and motivation before moving into technical design, parameters, or implementation detail.",
+    "related": [
+      "PARA-BKG-001",
+      "DIM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-003",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A method paragraph should specify data, procedure, configuration, instruments, and metrics rather than only naming the implemented system.",
+    "related": [
+      "PARA-METHOD-001",
+      "DIM-PARA-002"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-004",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A result paragraph should include concrete values, comparisons, and observed patterns while keeping interpretation concise and evidence-bound.",
+    "related": [
+      "PARA-RESULT-001",
+      "DIM-PARA-002"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-005",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A discussion paragraph should explain the meaning of findings, possible mechanisms, relation to literature, and implications for the research question.",
+    "related": [
+      "PARA-DISCUSS-001",
+      "PARA-INTERPRET-001",
+      "DIM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-006",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "A limitation paragraph should name the evidence boundary, describe why it matters, and avoid presenting limitations as promotional strengths.",
+    "related": [
+      "PARA-LIMIT-001",
+      "DIM-PARA-002"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-007",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "Paragraph cohesion should be maintained through logical sentence order, explicit transitions, repeated key terms, and clear referents.",
+    "related": [
+      "PARA-FUNC-ORDER-001",
+      "DIM-PARA-002"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-008",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "Paragraph completeness requires enough context, evidence, explanation, and closure for the reader to understand the local claim.",
+    "related": [
+      "NRM-PARA-001",
+      "NRM-PARA-007",
+      "DIM-PARA-002"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-009",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "One paragraph should perform one dominant rhetorical function and should not mix unrelated background, method, result, and discussion tasks.",
+    "related": [
+      "NRM-PARA-001",
+      "ERR-PARA-006",
+      "DIM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "NRM-PARA-010",
+    "node_type": "规范条款",
+    "dimension": "段落功能",
+    "text": "Supporting sentences should elaborate, qualify, or evidence the topic sentence instead of adding side claims that distract from the paragraph purpose.",
+    "related": [
+      "NRM-PARA-001",
+      "NRM-PARA-008",
+      "DIM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-001",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A background paragraph begins by naming the writing-feedback problem and then explains why traceable norm references matter for revision.",
+    "related": [
+      "NRM-PARA-002",
+      "PARA-BKG-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-002",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A method paragraph lists the query set, norm-node corpus, retrieval method, threshold setting, and evaluation metrics used in the experiment.",
+    "related": [
+      "NRM-PARA-003",
+      "PARA-METHOD-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-003",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A result paragraph states that one method retrieved fifteen valid references while another retrieved eleven under the same evaluation condition.",
+    "related": [
+      "NRM-PARA-004",
+      "PARA-RESULT-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-004",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A discussion paragraph explains that graph expansion may improve traceability because it links errors to norms and revision suggestions.",
+    "related": [
+      "NRM-PARA-005",
+      "PARA-DISCUSS-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-005",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A limitation paragraph states that the query set is synthetic and therefore cannot prove classroom learning effects.",
+    "related": [
+      "NRM-PARA-006",
+      "PARA-LIMIT-001"
+    ]
+  },
+  {
+    "node_id": "EX-PARA-006",
+    "node_type": "示例片段",
+    "dimension": "段落功能",
+    "text": "A cohesive paragraph repeats the key term traceability, uses this result to connect sentences, and closes by returning to the topic claim.",
+    "related": [
+      "NRM-PARA-007",
+      "NRM-PARA-008"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-001",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "The paragraph begins with isolated implementation detail and never states the central claim that the following sentences are meant to support.",
+    "related": [
+      "NRM-PARA-001",
+      "SUG-PARA-001"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-002",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "A background paragraph starts with vector dimensions, threshold settings, and database choices before explaining the research context.",
+    "related": [
+      "NRM-PARA-002",
+      "SUG-PARA-003"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-003",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "A method paragraph names an experiment but omits the data source, procedure, configuration, instruments, and evaluation metrics.",
+    "related": [
+      "NRM-PARA-003",
+      "SUG-PARA-002"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-004",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "A result paragraph claims improvement but gives no numerical value, comparison baseline, threshold condition, or observed pattern.",
+    "related": [
+      "NRM-PARA-004",
+      "SUG-PARA-002"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-005",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "A discussion paragraph repeats the reported scores but does not explain significance, mechanism, literature connection, or limitation.",
+    "related": [
+      "NRM-PARA-005",
+      "SUG-PARA-003"
+    ]
+  },
+  {
+    "node_id": "ERR-PARA-006",
+    "node_type": "违例模式",
+    "dimension": "段落功能",
+    "text": "One paragraph mixes literature background, system configuration, result numbers, and future teaching claims without a controlling function.",
+    "related": [
+      "NRM-PARA-009",
+      "SUG-PARA-003",
+      "PARA-RESULT-PLACE-001"
+    ]
+  },
+  {
+    "node_id": "SUG-PARA-001",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "Add a topic sentence that names the paragraph function and revise later sentences so they support that single claim.",
+    "related": [
+      "ERR-PARA-001",
+      "NRM-PARA-001"
+    ]
+  },
+  {
+    "node_id": "SUG-PARA-002",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "Expand the paragraph with missing data, procedure, metric, numerical result, or comparison information required by its function.",
+    "related": [
+      "ERR-PARA-003",
+      "ERR-PARA-004",
+      "NRM-PARA-003",
+      "NRM-PARA-004"
+    ]
+  },
+  {
+    "node_id": "SUG-PARA-003",
+    "node_type": "修改建议",
+    "dimension": "段落功能",
+    "text": "Split sentences with different rhetorical functions into separate paragraphs, then order each paragraph around one explicit purpose.",
+    "related": [
+      "ERR-PARA-002",
+      "ERR-PARA-005",
+      "ERR-PARA-006",
+      "NRM-PARA-009"
+    ]
+  }
 ]
