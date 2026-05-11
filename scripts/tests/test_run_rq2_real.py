@@ -79,6 +79,33 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertIn("LLM generation is not wired yet", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_build_real_row_with_llm_uses_injected_generator(self):
+        query = {"query_id": "Q001", "text": "citation evidence", "expected_ref_nodes": ["A"]}
+
+        class FakeRAG:
+            def retrieve(self, text, *, top_k, graph_expand):
+                return [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "citation evidence", "score": 0.8}]
+
+        calls = []
+
+        def fake_generator(*, query, method, retrieved_nodes):
+            calls.append((query["query_id"], method, [node["node_id"] for node in retrieved_nodes]))
+            return "评价维度：规范溯源。\n问题定位：citation evidence\n规范依据：[REF:A]\n修改建议：revise citation."
+
+        row = real.build_real_row(
+            query,
+            "full_graphrag",
+            FakeRAG(),
+            theta=0.6,
+            with_llm=True,
+            llm_generator=fake_generator,
+        )
+
+        self.assertEqual(calls, [("Q001", "full_graphrag", ["A"])])
+        self.assertEqual(row["run_type"], "real_system_llm")
+        self.assertEqual(row["generated_refs"], ["A"])
+        self.assertTrue(row["validation_results"]["A"]["pass"])
+
 
 if __name__ == "__main__":
     unittest.main()

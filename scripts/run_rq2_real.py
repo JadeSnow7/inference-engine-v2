@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -47,9 +48,17 @@ def build_dry_run_row(query: dict[str, Any], method: str, *, theta: float) -> di
     }
 
 
-def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, theta: float, with_llm: bool) -> dict[str, Any]:
-    if with_llm:
-        raise RuntimeError("LLM generation is not wired yet; run without --with-llm for retrieval/binding collection")
+def build_real_row(
+    query: dict[str, Any],
+    method: str,
+    rag: NormGraphRAG,
+    *,
+    theta: float,
+    with_llm: bool,
+    llm_generator: Callable[..., str] | None = None,
+) -> dict[str, Any]:
+    if with_llm and llm_generator is None:
+        raise RuntimeError("LLM generation is not wired yet; provide llm_generator or run without --with-llm")
     config = METHOD_CONFIGS[method]
     retrieved_nodes = []
     if config["retrieval"]:
@@ -58,8 +67,12 @@ def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, the
             top_k=1 if not config["graph_expand"] else 2,
             graph_expand=config["graph_expand"],
         )
-    generated_text = build_fallback_feedback(query, retrieved_nodes)
-    return build_retrieval_row(
+    generated_text = (
+        llm_generator(query=query, method=method, retrieved_nodes=retrieved_nodes)
+        if with_llm
+        else build_fallback_feedback(query, retrieved_nodes)
+    )
+    row = build_retrieval_row(
         query=query,
         method=method,
         retrieved_nodes=retrieved_nodes,
@@ -67,6 +80,9 @@ def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, the
         theta=theta,
         binding=bool(config["binding"]),
     )
+    if with_llm:
+        row["run_type"] = "real_system_llm"
+    return row
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
