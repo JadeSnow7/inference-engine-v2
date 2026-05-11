@@ -28,12 +28,27 @@ def _safe_error(exc: Exception) -> str:
     return "百炼规范助手暂时不可用，请重试"
 
 
+def _build_norm_prompt(safe_message: str, norm_retriever) -> str:
+    if norm_retriever is None or len(norm_retriever) == 0:
+        return safe_message
+    candidates = norm_retriever.retrieve(safe_message, top_k=5)
+    if not candidates:
+        return safe_message
+    expanded = norm_retriever.expand([node["node_id"] for node in candidates], hops=1)
+    nodes_by_id = {node["node_id"]: node for node in candidates + expanded}
+    context = norm_retriever.format_context(list(nodes_by_id.values()))
+    if not context:
+        return safe_message
+    return f"{context}\n\nWriting snippet:\n{safe_message}"
+
+
 async def norms_loop(
     user_id: str,
     session_id: str,
     user_message: str,
     conv: ConversationManager,
     profile_store,
+    norm_retriever=None,
 ) -> AsyncIterator[str]:
     accumulated = ""
     latest_app_session_id = ""
@@ -47,7 +62,8 @@ async def norms_loop(
         safe_message = desensitize(user_message, profile_dict)
         app_session_id = await conv.get_bailian_app_session(user_id, session_id)
 
-        async for chunk in stream_bailian_app(safe_message, session_id=app_session_id):
+        prompt = _build_norm_prompt(safe_message, norm_retriever)
+        async for chunk in stream_bailian_app(prompt, session_id=app_session_id):
             if chunk.session_id:
                 latest_app_session_id = chunk.session_id
             if chunk.references and not emitted_references:

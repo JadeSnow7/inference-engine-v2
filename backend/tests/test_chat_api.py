@@ -57,6 +57,7 @@ class ChatApiTest(unittest.TestCase):
         app.state.conv_manager = conv
         app.state.profile_store = SimpleNamespace()
         app.state.rag = object()
+        app.state.norm_retriever = SimpleNamespace()
         return TestClient(app), conv
 
     def test_chat_creates_session_and_returns_session_header(self) -> None:
@@ -125,6 +126,7 @@ class ChatApiTest(unittest.TestCase):
         self.assertEqual(response.headers["x-session-id"], "sess-1")
         self.assertEqual(conv.ensure_calls, [("u1", "sess-1", "检查论文格式规范")])
         self.assertEqual(calls[0][0:3], ("u1", "sess-1", "检查论文格式规范"))
+        self.assertIs(calls[0][5], client.app.state.norm_retriever)
 
     def test_list_sessions_returns_enveloped_data(self) -> None:
         client, conv = self._make_app()
