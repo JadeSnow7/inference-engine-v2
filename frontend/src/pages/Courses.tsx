@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useLayoutStore } from '../store/layout';
 import { FileText, ChevronRight, BrainCircuit } from 'lucide-react';
+import { Button, Card } from '../components/ui';
 
 export default function Courses() {
   const navigate = useNavigate();
@@ -42,20 +43,19 @@ export default function Courses() {
           />
         </div>
 
-        <div className="bg-scholar-bg-surface border border-scholar-border rounded-xl p-5 shadow-sm h-fit">
+        <Card className="h-fit" title="Course AI Assistant">
           <div className="flex items-center space-x-2 text-scholar-academic mb-4">
             <BrainCircuit size={20} />
-            <h3 className="font-bold">Course AI Assistant</h3>
           </div>
           <p className="text-sm text-scholar-text-secondary leading-relaxed mb-4">
             针对于微观经济学的学习材料，您可以随时向我提问，或者选择具体的文献导入到学术工作台中生成你的专属文献综述。
           </p>
-          <button
+          <Button
             onClick={() => navigate('/workbench')}
-            className="w-full py-2.5 bg-scholar-primary text-white rounded-lg text-sm font-medium hover:bg-scholar-primary-hover transition-colors shadow-sm">
+            className="w-full">
             进入空白工作台
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     </div>
   );
@@ -63,7 +63,7 @@ export default function Courses() {
 
 function ResourceCard({ title, type, onExtract }: { title: string; type: string; onExtract: () => void }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-scholar-bg-surface border border-scholar-border rounded-xl hover:shadow-sm transition-shadow">
+    <Card className="flex flex-col justify-between p-4 transition-shadow hover:shadow-card sm:flex-row sm:items-center">
       <div className="flex items-start space-x-3 mb-3 sm:mb-0">
         <div className="mt-1 p-2 bg-blue-50 text-blue-500 rounded-md"><FileText size={18} /></div>
         <div>
@@ -71,13 +71,14 @@ function ResourceCard({ title, type, onExtract }: { title: string; type: string;
           <span className="text-xs text-scholar-text-weak uppercase tracking-wider font-semibold">{type}</span>
         </div>
       </div>
-      <button
+      <Button
+        variant="secondary"
         onClick={onExtract}
-        className="flex items-center justify-center space-x-1 text-sm font-medium text-scholar-academic bg-blue-50/50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-transparent hover:border-blue-200 transition-colors shrink-0"
+        className="min-h-8 shrink-0 px-3 py-1.5 text-scholar-academic"
       >
         <span>载入工作台剖析</span>
         <ChevronRight size={16} />
-      </button>
-    </div>
+      </Button>
+    </Card>
   );
 }
