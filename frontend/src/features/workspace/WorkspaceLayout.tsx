@@ -6,7 +6,7 @@ import { MainWorkspace } from './MainWorkspace'
 import { RightKnowledgePanel } from './RightKnowledgePanel'
 import { TopBar } from './TopBar'
 
-export function WorkspaceLayout() {
+export function WorkspaceLayout({ embedded = false }: { embedded?: boolean }) {
   const hydrateLocalDraft = useWorkspaceStore(state => state.hydrateLocalDraft)
   const setActiveSessionId = useWorkspaceStore(state => state.setActiveSessionId)
   const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
@@ -32,8 +32,8 @@ export function WorkspaceLayout() {
   }, [setActiveSessionId, setRestoreSessionNotice])
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#f6f7fb] text-scholar-text-primary">
-      <TopBar />
+    <div className={`${embedded ? 'h-full' : 'h-screen'} flex w-full flex-col overflow-hidden bg-[#f6f7fb] text-scholar-text-primary`}>
+      {!embedded && <TopBar />}
       {workbenchContext && (
         <div className="border-b border-scholar-border bg-white px-5 py-2 text-xs text-scholar-text-secondary">
           <span className="font-semibold text-scholar-text-primary">当前研究上下文</span>
@@ -43,8 +43,8 @@ export function WorkspaceLayout() {
           <span className="font-medium text-scholar-primary">{workbenchContext.sourceTitle}</span>
         </div>
       )}
-      <div className="flex h-[calc(100vh-60px)] min-h-0 gap-3 p-3">
-        <LeftSidebar />
+      <div className="flex min-h-0 flex-1 gap-3 p-3">
+        {!embedded && <LeftSidebar />}
         <MainWorkspace />
         <RightKnowledgePanel />
       </div>
