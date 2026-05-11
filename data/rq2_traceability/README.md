@@ -99,3 +99,18 @@ after P0-A is completed.
 - 2026-05-10: Expanded the RQ2 norm-node corpus to 107 nodes across 5 node types and 3 dimensions.
   - 规范条款: 45  示例片段: 18  违例模式: 19  修改建议: 18  评价维度: 7
   - 引用格式: 35  章节结构: 36  段落功能: 36
+
+## Local Embedding Model Setup
+
+Local GraphRAG tests should use a ModelScope-downloaded BGE embedding model
+instead of downloading from Hugging Face at runtime.
+
+```bash
+/root/.venvs/inference-engine-backend/bin/python scripts/download_modelscope_embedding.py
+export EMBED_MODEL=/root/.cache/modelscope/BAAI/bge-small-zh-v1.5
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+```
+
+The RQ2 no-LLM harness does not require this embedding model; it uses
+script-local Jaccard retrieval over `norm_nodes.json`.
