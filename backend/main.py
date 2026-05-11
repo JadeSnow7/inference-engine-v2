@@ -9,6 +9,7 @@ from api.chat import router as chat_router
 from api.health import router as health_router
 from api.responses import register_error_handlers
 from api.users import router as users_router
+from api.writing import router as writing_router
 from config import settings
 from conversation.manager import ConversationManager
 from rag.dashscope_provider import DashScopeKnowledgeRAGRetriever
@@ -84,6 +85,7 @@ app.add_middleware(
 )
 app.include_router(health_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
+app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")
 
 
