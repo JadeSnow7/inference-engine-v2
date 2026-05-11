@@ -1,10 +1,10 @@
-export type EventType = 'stage' | 'papers' | 'gaps' | 'token' | 'done' | 'error'
+export type EventType = 'stage' | 'papers' | 'gaps' | 'references' | 'token' | 'done' | 'error'
 
 export interface SSEEvent {
   type: EventType
   content?: string
   stage?: string
-  data?: PaperItem[] | GapItem[]
+  data?: PaperItem[] | GapItem[] | ReferenceEventItem[]
 }
 
 export interface PaperItem {
@@ -20,6 +20,16 @@ export interface GapItem {
   severity?: 'high' | 'medium' | 'low'
   addressed_by?: number
   score?: number
+}
+
+export interface ReferenceEventItem {
+  id: string
+  title?: string
+  year?: number
+  score?: number
+  source?: string
+  url?: string
+  excerpt?: string
 }
 
 export type MessageRole = 'user' | 'assistant'

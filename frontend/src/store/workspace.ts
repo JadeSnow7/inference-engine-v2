@@ -1,6 +1,7 @@
 import { create } from 'zustand'
+import { fetchSessionArtifact, fetchSessionMessages, type MessageItem } from '../api/sessions'
 import { workspaceMock } from '../mocks/workspaceMock'
-import type { GapItem, PaperItem } from '../types/events'
+import type { GapItem, PaperItem, ReferenceEventItem } from '../types/events'
 import { changedVersionBlocks } from '../features/version/versionDiff'
 import type {
   AIRunStatus,
@@ -55,6 +56,7 @@ interface WorkspaceState {
   generatedText: string
   saveStatus: WorkspaceSaveStatus
   restoreSessionNotice: string
+  restoredMessages: MessageItem[]
   lastRestoreNotice: RestoreNotice | null
   currentSuggestion: DocumentSuggestion | null
   citationEnhancementRequest: CitationEnhancementRequest | null
@@ -73,6 +75,7 @@ interface WorkspaceState {
   cancelVersionPreview: () => void
   restorePreviewVersion: () => void
   setActiveSessionId: (id: string) => void
+  restoreSession: (id: string) => Promise<void>
   setSelectedGraphNode: (id: string) => void
   selectCitationReference: (referenceId: string, blockId: string) => void
   setSelectedBlock: (id: string) => void
@@ -94,6 +97,7 @@ interface WorkspaceState {
   cancelAIRun: () => void
   upsertRagPapers: (papers: PaperItem[]) => void
   upsertRagGaps: (gaps: GapItem[]) => void
+  upsertReferences: (references: ReferenceEventItem[]) => void
   clearRagArtifacts: () => void
   nextChange: () => void
   previousChange: () => void
@@ -210,6 +214,7 @@ function initialWorkspaceState() {
     generatedText: '',
     saveStatus: 'saved' as WorkspaceSaveStatus,
     restoreSessionNotice: '',
+    restoredMessages: [],
     lastRestoreNotice: null,
     currentSuggestion: cloneSuggestion(workspaceMock.aiSuggestion),
     citationEnhancementRequest: null,
@@ -513,6 +518,49 @@ function createRestoredDraftVersionSnapshot(documentBlocks: DocumentBlock[]): Do
   }
 }
 
+function createRestoredOutlineBlocks(sessionId: string, finalOutline: string): DocumentBlock[] {
+  return [
+    {
+      id: `outline-title-${sessionId}`,
+      type: 'heading',
+      headingLevel: 1,
+      content: '恢复的研究提纲',
+    },
+    {
+      id: `outline-body-${sessionId}`,
+      type: 'paragraph',
+      title: '历史会话提纲',
+      content: finalOutline,
+    },
+  ]
+}
+
+function createRestoredSessionSuggestion(
+  sessionId: string,
+  messages: MessageItem[],
+  documentBlocks: DocumentBlock[],
+): DocumentSuggestion | null {
+  const assistantMessage = [...messages].reverse().find(message => message.role === 'assistant')
+  const targetBlock = firstParagraphBlock(documentBlocks)
+  if (!assistantMessage || !targetBlock) return null
+
+  return {
+    id: `restored-session-suggestion-${sessionId}`,
+    title: '恢复的 AI 建议',
+    summary: assistantMessage.content,
+    targetBlockIds: [targetBlock.id],
+    operation: 'replace_blocks',
+    beforeBlocks: [cloneDocumentBlock(targetBlock)],
+    afterBlocks: [cloneDocumentBlock(targetBlock)],
+    reason: '从历史会话消息恢复，用于继续审阅。',
+    confidence: 0.7,
+    createdAt: new Date().toISOString(),
+    changes: [],
+    reasons: ['历史会话恢复。'],
+    reasoningSteps: messages.map(message => `${message.role}: ${message.content}`),
+  }
+}
+
 function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   const byId = new Map(current.map(item => [item.id, item]))
   incoming.forEach(item => byId.set(item.id, item))
@@ -606,7 +654,7 @@ function severityLabel(severity: GapItem['severity']): string {
   }
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   ...initialWorkspaceState(),
 
   setActiveConversation: (id) => set({ activeConversationId: id }),
@@ -678,6 +726,53 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     }
   }),
   setActiveSessionId: (id) => set({ activeSessionId: id }),
+  restoreSession: async (id) => {
+    set({ aiRunStatus: 'retrieving', restoreSessionNotice: '正在恢复历史会话...' })
+    try {
+      const [messagesResponse, artifact] = await Promise.all([
+        fetchSessionMessages(id),
+        fetchSessionArtifact(id),
+      ])
+      const papers = artifact.papers ?? []
+      const gaps = artifact.gaps ?? []
+      const documentBlocks = artifact.final_outline
+        ? createRestoredOutlineBlocks(id, artifact.final_outline)
+        : cloneDocumentBlocksFrom(get().documentBlocks)
+      const documentVersions = artifact.final_outline
+        ? [createRestoredDraftVersionSnapshot(documentBlocks), ...get().documentVersions.slice(0, MAX_LOCAL_VERSION_SNAPSHOTS - 1)]
+        : get().documentVersions.map(cloneVersionSnapshot)
+      const activeVersionId = documentVersions[0]?.id ?? get().activeVersionId
+      const artifacts = buildDynamicGraphArtifacts(papers, gaps, documentBlocks.map(block => block.id))
+      const currentSuggestion = createRestoredSessionSuggestion(id, messagesResponse.messages, documentBlocks)
+      const persisted = persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, activeVersionId))
+
+      set({
+        activeSessionId: id,
+        restoredMessages: messagesResponse.messages,
+        ragPapers: papers.map(clonePaper),
+        ragGaps: gaps.map(cloneGap),
+        documentBlocks,
+        documentVersions,
+        activeVersionId,
+        currentSuggestion,
+        currentChangeIndex: 0,
+        graphNodes: artifacts.graphNodes,
+        graphEdges: artifacts.graphEdges,
+        references: artifacts.references,
+        selectedBlockId: documentBlocks[0]?.id ?? null,
+        saveStatus: persisted ? 'local-saved' : 'modified',
+        aiRunStatus: 'done',
+        aiStageLabel: '历史会话已恢复',
+        restoreSessionNotice: '已完整恢复历史会话，可继续生成修改建议',
+      })
+    } catch {
+      set({
+        aiRunStatus: 'error',
+        aiStageLabel: '历史会话恢复失败',
+        restoreSessionNotice: '历史会话恢复失败，请重试',
+      })
+    }
+  },
   setSelectedGraphNode: (id) => set((state) => {
     const selectedNode = state.graphNodes.find(node => node.id === id)
     const relatedBlockId = selectedNode ? findFirstRelatedBlockId(state.documentBlocks, selectedNode) : null
@@ -860,6 +955,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       ...artifacts,
     }
   }),
+  upsertReferences: (references) => set((state) => ({
+    references: mergeById(state.references, references.map(reference => ({
+      id: reference.id,
+      title: reference.title ?? reference.source ?? `引用来源 ${reference.id}`,
+      year: reference.year,
+      venue: reference.source,
+      score: reference.score,
+    }))),
+  })),
   clearRagArtifacts: () => set({
     ragPapers: [],
     ragGaps: [],

@@ -1,5 +1,5 @@
 import { useUserStore } from '../store/user'
-import type { PaperItem, GapItem, SSEEvent } from '../types/events'
+import type { PaperItem, GapItem, ReferenceEventItem, SSEEvent } from '../types/events'
 
 export interface SSEController {
   abort: () => void
@@ -10,6 +10,7 @@ export interface SSEHandlers {
   onStage:  (stage: string)       => void
   onPapers: (papers: PaperItem[]) => void
   onGaps:   (gaps: GapItem[])     => void
+  onReferences?: (references: ReferenceEventItem[]) => void
   onToken:  (token: string)       => void
   onDone:   ()                    => void
   onError:  (msg: string)         => void
@@ -103,6 +104,9 @@ function handleEvent(event: SSEEvent, h: SSEHandlers): void {
       break
     case 'gaps':
       h.onGaps((event.data as GapItem[]) ?? [])
+      break
+    case 'references':
+      h.onReferences?.((event.data as ReferenceEventItem[]) ?? [])
       break
     case 'token':
       h.onToken(event.content ?? '')

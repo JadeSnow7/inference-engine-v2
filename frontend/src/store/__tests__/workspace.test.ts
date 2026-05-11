@@ -3,6 +3,14 @@ import { useWorkspaceStore } from '../workspace'
 import { aiSuggestion } from '../../mocks/workspaceMock'
 import type { DocumentSuggestion } from '../../types/workspace'
 
+const fetchSessionMessages = vi.hoisted(() => vi.fn())
+const fetchSessionArtifact = vi.hoisted(() => vi.fn())
+
+vi.mock('../../api/sessions', () => ({
+  fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
+  fetchSessionArtifact: (...args: unknown[]) => fetchSessionArtifact(...args),
+}))
+
 const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
 const WORKBENCH_SNAPSHOT_KEY = 'workbench:workspaceSnapshot:v1'
 
@@ -284,6 +292,32 @@ describe('useWorkspaceStore', () => {
     expect(state.graphNodes.some(node => node.id === 'paper:paper-live-1' && node.type === 'paper')).toBe(true)
     expect(state.graphNodes.some(node => node.id === 'gap:gap-live-1' && node.type === 'gap')).toBe(true)
     expect(state.references.some(reference => reference.id === 'paper-live-1' && reference.score === 0.93)).toBe(true)
+  })
+
+  it('restores session messages artifact papers gaps outline draft and suggestion from backend data', async () => {
+    fetchSessionMessages.mockResolvedValue({
+      messages: [
+        { role: 'user', content: '请分析这篇课程文献。' },
+        { role: 'assistant', content: '可以从研究问题、方法和证据三部分展开。' },
+      ],
+    })
+    fetchSessionArtifact.mockResolvedValue({
+      papers: [{ id: 'paper-restored', title: 'Restored Paper', year: 2026, score: 0.94 }],
+      gaps: [{ id: 'gap-restored', description: '缺少课堂情境对照', severity: 'medium', addressed_by: 2, score: 0.72 }],
+      final_outline: '一、研究背景\n二、文献综述\n三、研究空白',
+    })
+
+    await useWorkspaceStore.getState().restoreSession('sess-restored')
+
+    const state = useWorkspaceStore.getState()
+    expect(fetchSessionMessages).toHaveBeenCalledWith('sess-restored')
+    expect(fetchSessionArtifact).toHaveBeenCalledWith('sess-restored')
+    expect(state.activeSessionId).toBe('sess-restored')
+    expect(state.ragPapers).toEqual([{ id: 'paper-restored', title: 'Restored Paper', year: 2026, score: 0.94 }])
+    expect(state.ragGaps).toEqual([{ id: 'gap-restored', description: '缺少课堂情境对照', severity: 'medium', addressed_by: 2, score: 0.72 }])
+    expect(state.documentBlocks.some(block => block.content.includes('研究背景'))).toBe(true)
+    expect(state.currentSuggestion?.summary).toContain('可以从研究问题、方法和证据三部分展开')
+    expect(state.restoreSessionNotice).toContain('已完整恢复历史会话')
   })
 
   it('clears previous RAG artifacts when a new AI run starts', () => {

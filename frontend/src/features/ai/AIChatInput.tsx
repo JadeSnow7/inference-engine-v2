@@ -1,6 +1,7 @@
 import { BookCheck, Globe2, Library, Network, Send, Square, WandSparkles, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { connectSSE, type SSEController } from '../../api/sse'
+import { useLayoutStore } from '../../store/layout'
 import { useWorkspaceStore } from '../../store/workspace'
 
 type QuickModeId = 'deep' | 'web' | 'citation' | 'graph' | 'norms'
@@ -16,6 +17,7 @@ const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon }> = 
 export function AIChatInput() {
   const [input, setInput] = useState('')
   const [selectedMode, setSelectedMode] = useState<QuickModeId>('deep')
+  const workbenchContext = useLayoutStore(state => state.workbenchContext)
   const controllerRef = useRef<SSEController | null>(null)
   const handledCitationRequestIdRef = useRef<string | null>(null)
   const aiRunStatus = useWorkspaceStore(state => state.aiRunStatus)
@@ -64,6 +66,7 @@ export function AIChatInput() {
       : '请根据用户需求改写下方目标段落，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
 
     const prompt = [
+      getContextInstruction(workbenchContext),
       modeInstruction,
       instruction,
       `用户需求：${trimmedRequest}`,
@@ -86,6 +89,7 @@ export function AIChatInput() {
       },
       onPapers: (papers) => upsertRagPapers(papers),
       onGaps: (gaps) => upsertRagGaps(gaps),
+      onReferences: (references) => useWorkspaceStore.getState().upsertReferences(references),
       onToken: (token) => appendGeneratedToken(token),
       onDone: () => {
         finishAIRunAsSuggestion()
@@ -108,6 +112,7 @@ export function AIChatInput() {
     startCitationEnhancement,
     upsertRagGaps,
     upsertRagPapers,
+    workbenchContext,
   ])
 
   useEffect(() => {
@@ -142,7 +147,9 @@ export function AIChatInput() {
             }
           }}
           className="min-h-[58px] max-h-28 w-full resize-none rounded-t-2xl px-4 py-3 text-sm outline-none"
-          placeholder="输入您的问题或需求，使用 @ 引用文献，/ 使用指令"
+          placeholder={workbenchContext
+            ? `当前研究上下文：${workbenchContext.sourceTitle}，输入您的问题或需求`
+            : '输入您的问题或需求，使用 @ 引用文献，/ 使用指令'}
         />
         <div className="flex items-center gap-2 border-t border-scholar-border px-3 py-2">
           {quickModes.map(mode => {
@@ -194,6 +201,11 @@ export function AIChatInput() {
       </div>
     </div>
   )
+}
+
+function getContextInstruction(context: ReturnType<typeof useLayoutStore.getState>['workbenchContext']): string {
+  if (!context) return '当前研究上下文：空白工作台'
+  return `当前研究上下文：${context.courseTitle ?? '未指定课程'} / ${context.sourceTitle} / ${context.actionType}`
 }
 
 function getModeInstruction(mode: QuickModeId): string {

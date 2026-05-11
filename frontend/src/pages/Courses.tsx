@@ -7,7 +7,13 @@ export default function Courses() {
   const setWorkbenchContext = useLayoutStore(state => state.setWorkbenchContext);
 
   const handleTakeToWorkbench = (title: string, type: string) => {
-    setWorkbenchContext({ sourceTitle: title, actionType: type });
+    setWorkbenchContext({
+      sourceTitle: title,
+      actionType: type as 'outline' | 'review' | 'gap',
+      courseTitle: 'Principles of Microeconomics',
+      sourceType: type === 'review' ? 'paper' : 'lecture',
+      createdAt: new Date().toISOString(),
+    });
     navigate('/workbench');
   };
 

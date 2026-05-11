@@ -75,6 +75,7 @@ describe('connectSSE', () => {
     const onStage = vi.fn()
     const onPapers = vi.fn()
     const onGaps = vi.fn()
+    const onReferences = vi.fn()
     const onToken = vi.fn()
     const onError = vi.fn()
     const onDone = vi.fn()
@@ -86,6 +87,7 @@ describe('connectSSE', () => {
           'data: {"type":"stage","stage":"文献支撑检索"}',
           'data: {"type":"papers","data":[{"id":"p1","title":"Paper A","year":2024,"score":0.91}]}',
           'data: {"type":"gaps","data":[{"id":"g1","description":"Gap A","severity":"high","addressed_by":0,"score":0.8}]}',
+          'data: {"type":"references","data":[{"id":"r1","title":"GraphRAG in Education","year":2025,"score":0.92,"source":"Norm Corpus"}]}',
           'data: {"type":"token","content":"正文"}',
           'data: {"type":"error","content":"轻微错误"}',
           'data: {"type":"done"}',
@@ -99,6 +101,7 @@ describe('connectSSE', () => {
         onStage,
         onPapers,
         onGaps,
+        onReferences,
         onToken,
         onDone,
         onError,
@@ -112,6 +115,7 @@ describe('connectSSE', () => {
     expect(onStage).toHaveBeenCalledWith('文献支撑检索')
     expect(onPapers).toHaveBeenCalledWith([{ id: 'p1', title: 'Paper A', year: 2024, score: 0.91 }])
     expect(onGaps).toHaveBeenCalledWith([{ id: 'g1', description: 'Gap A', severity: 'high', addressed_by: 0, score: 0.8 }])
+    expect(onReferences).toHaveBeenCalledWith([{ id: 'r1', title: 'GraphRAG in Education', year: 2025, score: 0.92, source: 'Norm Corpus' }])
     expect(onToken).toHaveBeenCalledWith('正文')
     expect(onError).toHaveBeenCalledWith('轻微错误')
   })
