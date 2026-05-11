@@ -95,36 +95,37 @@ async def stream_model(
     which are transparently stripped by *_ThinkingSanitizer*.
     """
     extra_body = {"enable_thinking": True, "thinking_budget": thinking_budget} if thinking else None
-    stream = await _client().chat.completions.create(
-        model=settings.MODEL_NAME,
-        messages=messages,
-        temperature=temperature,
-        stream=True,
-        max_tokens=4096,
-        extra_body=extra_body,
-    )
-    sanitizer = _ThinkingSanitizer()
-    async for chunk in stream:
-        choice = chunk.choices[0] if chunk.choices else None
-        if choice is None:
-            continue
-        delta = choice.delta
-        # DashScope exposes thinking content in reasoning_content, and the
-        # visible text in content. We merge both through the sanitizer so that
-        # either API surface (new reasoning_content field OR embedded tags)
-        # is handled correctly.
-        reasoning = getattr(delta, "reasoning_content", None) or ""
-        content = getattr(delta, "content", None) or ""
+    async with _client() as client:
+        stream = await client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=messages,
+            temperature=temperature,
+            stream=True,
+            max_tokens=4096,
+            extra_body=extra_body,
+        )
+        sanitizer = _ThinkingSanitizer()
+        async for chunk in stream:
+            choice = chunk.choices[0] if chunk.choices else None
+            if choice is None:
+                continue
+            delta = choice.delta
+            # DashScope exposes thinking content in reasoning_content, and the
+            # visible text in content. We merge both through the sanitizer so that
+            # either API surface (new reasoning_content field OR embedded tags)
+            # is handled correctly.
+            reasoning = getattr(delta, "reasoning_content", None) or ""
+            content = getattr(delta, "content", None) or ""
 
-        # If the API strips thinking into reasoning_content we discard it
-        # directly. If it embeds <think> tags in content, the sanitizer strips them.
-        if reasoning:
-            # Already separated by API — discard.
-            pass
-        if content:
-            visible = sanitizer.feed(content)
-            if visible:
-                yield visible
+            # If the API strips thinking into reasoning_content we discard it
+            # directly. If it embeds <think> tags in content, the sanitizer strips them.
+            if reasoning:
+                # Already separated by API — discard.
+                pass
+            if content:
+                visible = sanitizer.feed(content)
+                if visible:
+                    yield visible
 
     # Flush any remaining visible text.
     remaining = sanitizer.flush()
@@ -141,14 +142,15 @@ async def call_model_once(
 ) -> str:
     """Non-streaming model call. Returns the full assistant text."""
     extra_body = {"enable_thinking": True, "thinking_budget": thinking_budget} if thinking else None
-    response = await _client().chat.completions.create(
-        model=settings.MODEL_NAME,
-        messages=messages,
-        temperature=temperature,
-        stream=False,
-        max_tokens=max_tokens,
-        extra_body=extra_body,
-    )
+    async with _client() as client:
+        response = await client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=messages,
+            temperature=temperature,
+            stream=False,
+            max_tokens=max_tokens,
+            extra_body=extra_body,
+        )
     raw = response.choices[0].message.content or ""
     # Strip any embedded <think>...</think> from non-streaming responses as well.
     sanitizer = _ThinkingSanitizer()
