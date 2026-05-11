@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -86,8 +87,12 @@ def main() -> int:
     queries = read_queries(root, args.limit)
     if args.real:
         rag = NormGraphRAG.from_root(root)
-        for query in queries:
-            print(json.dumps(build_real_row(query, args.method, rag, theta=args.theta, with_llm=args.with_llm), ensure_ascii=False))
+        try:
+            for query in queries:
+                print(json.dumps(build_real_row(query, args.method, rag, theta=args.theta, with_llm=args.with_llm), ensure_ascii=False))
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         return 0
     for query in queries:
         print(json.dumps(build_dry_run_row(query, args.method, theta=args.theta), ensure_ascii=False))

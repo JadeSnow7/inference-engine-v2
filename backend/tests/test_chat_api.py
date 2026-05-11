@@ -96,6 +96,36 @@ class ChatApiTest(unittest.TestCase):
         self.assertEqual(response.headers["x-session-id"], "sess-old")
         self.assertEqual(conv.ensure_calls, [("u1", "sess-old", "继续")])
 
+    def test_chat_norms_mode_routes_to_norms_loop(self) -> None:
+        import api.chat as chat_module
+
+        calls = []
+
+        async def fake_norms_loop(*args, **_kwargs):
+            calls.append(args)
+            yield fmt(SSEEvent(type=EventType.STAGE, stage="学术规范检索中"))
+            yield fmt(SSEEvent(type=EventType.DONE))
+
+        async def forbidden_main_loop(*_args, **_kwargs):
+            raise AssertionError("main_loop should not handle mode=norms")
+            yield  # pragma: no cover
+
+        client, conv = self._make_app()
+        original_norms_loop = chat_module.norms_loop
+        original_main_loop = chat_module.main_loop
+        chat_module.norms_loop = fake_norms_loop
+        chat_module.main_loop = forbidden_main_loop
+        try:
+            response = client.post("/api/chat", json={"message": "检查论文格式规范", "session_id": "sess-1", "mode": "norms"})
+        finally:
+            chat_module.norms_loop = original_norms_loop
+            chat_module.main_loop = original_main_loop
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["x-session-id"], "sess-1")
+        self.assertEqual(conv.ensure_calls, [("u1", "sess-1", "检查论文格式规范")])
+        self.assertEqual(calls[0][0:3], ("u1", "sess-1", "检查论文格式规范"))
+
     def test_list_sessions_returns_enveloped_data(self) -> None:
         client, conv = self._make_app()
 
