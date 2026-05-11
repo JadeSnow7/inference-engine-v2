@@ -12,9 +12,22 @@ from api.users import router as users_router
 from config import settings
 from conversation.manager import ConversationManager
 from rag.dashscope_provider import DashScopeKnowledgeRAGRetriever
+from rag.embed_adapter import DashScopeEmbedder
 from rag.graph import KnowledgeGraph, build_demo_graph
+from rag.norm_retriever import NormNodeRetriever
 from rag.retriever import DisabledRAGRetriever, GraphRAGRetriever
 from store.redis_store import RedisConversationStore, RedisProfileStore, UserStore
+
+
+def build_norm_retriever() -> NormNodeRetriever:
+    try:
+        retriever = NormNodeRetriever(embedder=DashScopeEmbedder())
+        print(f"[startup] NormNodeRetriever loaded: {len(retriever)} nodes, embedder=DashScope")
+        return retriever
+    except Exception:
+        retriever = NormNodeRetriever()
+        print(f"[startup] NormNodeRetriever loaded with Jaccard fallback: {len(retriever)} nodes")
+        return retriever
 
 
 @asynccontextmanager
@@ -51,6 +64,7 @@ async def lifespan(app: FastAPI):
     app.state.embedder = embedder
     app.state.kg = kg
     app.state.rag = rag
+    app.state.norm_retriever = build_norm_retriever()
     app.state.conv_manager = ConversationManager(RedisConversationStore(redis_client))
     app.state.profile_store = RedisProfileStore(redis_client)
     app.state.user_store = UserStore(redis_client)
