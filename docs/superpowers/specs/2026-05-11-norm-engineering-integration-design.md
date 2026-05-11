@@ -17,7 +17,7 @@ The implementation must preserve the current production path: online norm feedba
 
 ## Architecture
 
-The integration adds a local `NormNodeRetriever` dedicated to the 107-node writing-norm corpus. It loads `norm_nodes_with_embeddings.json` when available. If embeddings or a query embedder are unavailable, it falls back to local Jaccard scoring so the backend can still boot and tests can run without external API access.
+The integration adds a local `NormNodeRetriever` dedicated to the 107-node writing-norm corpus. It loads `norm_nodes_with_embeddings.json` when available and automatically falls back to `norm_nodes.json` if the embedding cache is missing. If node embeddings or a query embedder are unavailable, it falls back to local Jaccard scoring so the backend can still boot and tests can run without external API access.
 
 DashScope embedding is isolated behind `DashScopeEmbedder`, a small adapter exposing `.embed(text) -> list[float]`. A reproducible script builds the node embedding cache with `text-embedding-v3`; this script is run manually or during deployment, not during unit tests.
 
@@ -32,18 +32,28 @@ The FastAPI lifespan initializes `app.state.norm_retriever` independently from `
 Responsibilities:
 
 - Load norm nodes from `data/rq2_traceability/norm_nodes_with_embeddings.json` by default.
+- Fall back to `data/rq2_traceability/norm_nodes.json` when the embedding cache file is missing.
 - Store embeddings internally as NumPy arrays when present.
 - Provide `retrieve(query, top_k=5, theta=0.0) -> list[dict]`.
-- Provide `expand(node_ids, hops=1) -> list[dict]`.
+- Provide `expand(node_ids, hops=1) -> list[dict]` by following each node's `related` field.
 - Provide `validate_ref(node_id, query, theta=0.6) -> tuple[bool, float]`.
 - Provide `format_context(nodes) -> str` for prompt/API context.
 - Strip internal `embedding` data from all returned public nodes.
 
 Fallback behavior:
 
-- If the embedding cache file is missing, load zero nodes and allow startup.
+- If the embedding cache file is missing but the raw corpus exists, load the raw corpus and allow Jaccard retrieval.
+- If neither corpus file exists, load zero nodes and allow startup.
 - If an embedder is not configured, use Jaccard scoring over node text.
-- If the embedder raises during retrieval, fail that call with a sanitized error only if the caller cannot safely fall back. Startup must fall back to Jaccard.
+- If the embedder raises during retrieval or validation, automatically fall back to Jaccard scoring for that call and emit only a safe log message without provider details.
+- If `validate_ref()` receives an unknown `node_id`, return `(False, 0.0)` and do not raise.
+- `expand()` must de-duplicate results, must not return the original seed node IDs as expanded nodes, and must not expose embeddings in returned nodes.
+- `format_context()` must use a stable template with node ID, node type/category, norm text, and citation instruction:
+
+```text
+Relevant norm nodes. Cite them as [REF:node_id].
+- [REF:NRM-CIT-001] type=规范条款 dimension=引用格式 text=...
+```
 
 ### `backend/rag/embed_adapter.py`
 
@@ -82,12 +92,14 @@ Responsibilities:
 - `norms_loop()` keeps its current conversation persistence, desensitization, Bailian session reuse, reference streaming, token streaming, and safe error behavior.
 - Before calling `stream_bailian_app()`, `norms_loop()` builds norm context from the desensitized message and appends it to the prompt.
 - If no retriever is loaded or no nodes match, it sends the current sanitized user message unchanged.
+- Tests should assert key fragments in the injected prompt rather than the complete formatted string.
 
 ### `backend/api/writing.py`
 
 Responsibilities:
 
 - Register `POST /v1/writing/analyze`.
+- Define the router path as `/writing/analyze`; `backend/main.py` registers it with `prefix="/v1"`, producing `/v1/writing/analyze`.
 - Require the existing JWT dependency through `get_current_user_id`.
 - Accept `text`, `top_k`, `theta`, and optional `refs`.
 - Return `nodes`, `expanded`, `context`, and `validation`.
@@ -108,7 +120,7 @@ Backend startup:
 1. FastAPI lifespan initializes Redis, existing RAG state, and stores.
 2. Lifespan attempts to create `DashScopeEmbedder`.
 3. Lifespan creates `NormNodeRetriever(embedder=embedder)` if possible.
-4. If embedder creation fails, lifespan creates `NormNodeRetriever()` for Jaccard fallback.
+4. If embedder creation fails, lifespan creates `NormNodeRetriever()` for Jaccard fallback over the raw corpus.
 5. `app.state.norm_retriever` is available to chat and writing APIs.
 
 `/api/chat mode=norms`:
@@ -134,6 +146,7 @@ Backend startup:
 - Never read `.env` directly.
 - Never print API keys or raw provider configuration.
 - Startup embedding failures degrade to Jaccard fallback.
+- Runtime embedder failures during retrieval or validation degrade to Jaccard fallback and do not surface as user-facing errors.
 - API responses must not expose embeddings.
 - `/v1/writing/analyze` returns empty result sets when no retriever is available.
 - Provider exceptions in normal user flows must be sanitized through existing error handling.
@@ -145,6 +158,7 @@ Unit tests must not call external APIs.
 
 - `backend/tests/test_norm_retriever.py`
   - load a temporary corpus
+  - verify embedding-cache-missing fallback loads raw `norm_nodes.json`
   - verify Jaccard fallback retrieval
   - verify fake embedder cosine retrieval
   - verify graph expansion
@@ -153,6 +167,7 @@ Unit tests must not call external APIs.
 
 - `backend/tests/test_norms_loop.py`
   - verify `norms_loop()` injects formatted norm context into `stream_bailian_app()`
+  - verify `norm_retriever=None` preserves the existing sanitized message path
   - verify it preserves desensitization and conversation saving
 
 - `backend/tests/test_chat_api.py`
@@ -161,6 +176,7 @@ Unit tests must not call external APIs.
 - `backend/tests/test_writing_api.py`
   - verify `/v1/writing/analyze` returns nodes, expanded nodes, context, and validation
   - verify no `embedding` field appears
+  - verify `top_k` validation rejects values above the endpoint limit
 
 - `backend/tests/test_embed_adapter.py`
   - mock the OpenAI client and verify the adapter calls embeddings correctly
