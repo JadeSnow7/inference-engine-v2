@@ -6,6 +6,18 @@ import App from '../../../App'
 import { useUserStore } from '../../../store/user'
 import { useWorkspaceStore } from '../../../store/workspace'
 
+const fetchSessions = vi.hoisted(() => vi.fn())
+const fetchSessionMessages = vi.hoisted(() => vi.fn())
+const fetchSessionArtifact = vi.hoisted(() => vi.fn())
+const deleteSession = vi.hoisted(() => vi.fn())
+
+vi.mock('../../../api/sessions', () => ({
+  fetchSessions: (...args: unknown[]) => fetchSessions(...args),
+  fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
+  fetchSessionArtifact: (...args: unknown[]) => fetchSessionArtifact(...args),
+  deleteSession: (...args: unknown[]) => deleteSession(...args),
+}))
+
 vi.mock('@xyflow/react', () => ({
   ReactFlow: ({
     nodes,
@@ -51,6 +63,28 @@ describe('WorkspaceShell routes', () => {
     window.history.pushState({}, '', '/workbench')
     useUserStore.setState({ token: 'token-1', userId: 'alex@hust.edu.cn' })
     useWorkspaceStore.getState().resetWorkspace()
+    fetchSessions.mockResolvedValue({
+      total: 1,
+      items: [{
+        session_id: 'sess-shell-restore',
+        title: '课程文献综述恢复',
+        scene: 'norms',
+        updated_at: 1778510000,
+        message_count: 2,
+      }],
+    })
+    fetchSessionMessages.mockResolvedValue({
+      messages: [
+        { role: 'user', content: '恢复课程材料' },
+        { role: 'assistant', content: '建议按背景、方法、证据组织。' },
+      ],
+    })
+    fetchSessionArtifact.mockResolvedValue({
+      papers: [{ id: 'paper-shell', title: 'Shell Restore Paper', year: 2026, score: 0.91 }],
+      gaps: [{ id: 'gap-shell', description: '缺少规范证据', severity: 'high', addressed_by: 0, score: 0.8 }],
+      final_outline: '一、课程背景\n二、规范证据',
+    })
+    deleteSession.mockResolvedValue({ deleted: true })
   })
 
   it('renders workbench inside the same global workspace shell as the rest of the app', () => {
@@ -67,5 +101,21 @@ describe('WorkspaceShell routes', () => {
 
     expect(within(shell).getByRole('heading', { name: '基于深度学习的图像分类方法综述' })).toBeInTheDocument()
     expect(screen.getByTestId('knowledge-flow')).toBeInTheDocument()
+  })
+
+  it('restores a history session from the unified right panel into workbench state', async () => {
+    window.history.pushState({}, '', '/courses')
+
+    render(<App />)
+
+    screen.getByRole('button', { name: '历史记录' }).click()
+    expect(await screen.findByText('课程文献综述恢复')).toBeInTheDocument()
+
+    screen.getByText('课程文献综述恢复').click()
+
+    expect(await screen.findByText(/已完整恢复历史会话/)).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/workbench')
+    expect(useWorkspaceStore.getState().activeSessionId).toBe('sess-shell-restore')
+    expect(useWorkspaceStore.getState().documentBlocks.some(block => block.content.includes('课程背景'))).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { GlobalSidebar } from './GlobalSidebar'
 import { GlobalTopBar } from './GlobalTopBar'
+import { WorkspaceRightPanel } from './WorkspaceRightPanel'
 
 export function WorkspaceShell() {
   return (
@@ -12,6 +13,7 @@ export function WorkspaceShell() {
           <Outlet />
         </main>
       </div>
+      <WorkspaceRightPanel />
     </div>
   )
 }
