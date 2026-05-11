@@ -48,6 +48,52 @@ def build_dry_run_row(query: dict[str, Any], method: str, *, theta: float) -> di
     }
 
 
+def build_llm_messages(*, query: dict[str, Any], method: str, retrieved_nodes: list[dict[str, Any]]) -> list[dict[str, str]]:
+    refs = " ".join(f"[REF:{node['node_id']}]" for node in retrieved_nodes[:3])
+    node_lines = "\n".join(
+        f"- {node['node_id']} ({node['node_type']}, {node['dimension']}): {node['text']}"
+        for node in retrieved_nodes
+    )
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You generate concise academic writing feedback. "
+                "Use the four Chinese labels: 评价维度, 问题定位, 规范依据, 修改建议. "
+                "When citing norm nodes, use exact reference tags such as [REF:node_id]."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"query_id: {query['query_id']}\n"
+                f"method: {method}\n"
+                f"writing snippet:\n{query['text']}\n\n"
+                f"retrieved norm nodes:\n{node_lines}\n\n"
+                f"Use these reference tags when relevant: {refs}"
+            ),
+        },
+    ]
+
+
+def build_dashscope_llm_generator(root: Path) -> Callable[..., str]:
+    backend_dir = root / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    import asyncio
+
+    try:
+        from core.stream import call_model_once
+    except Exception as exc:
+        raise RuntimeError(f"LLM generation dependency or config unavailable: {exc}") from exc
+
+    def generate(*, query: dict[str, Any], method: str, retrieved_nodes: list[dict[str, Any]]) -> str:
+        messages = build_llm_messages(query=query, method=method, retrieved_nodes=retrieved_nodes)
+        return asyncio.run(call_model_once(messages, temperature=0.2, thinking=False, max_tokens=800))
+
+    return generate
+
+
 def build_real_row(
     query: dict[str, Any],
     method: str,
@@ -104,8 +150,19 @@ def main() -> int:
     if args.real:
         rag = NormGraphRAG.from_root(root)
         try:
+            llm_generator = build_dashscope_llm_generator(root) if args.with_llm else None
             for query in queries:
-                print(json.dumps(build_real_row(query, args.method, rag, theta=args.theta, with_llm=args.with_llm), ensure_ascii=False))
+                print(json.dumps(
+                    build_real_row(
+                        query,
+                        args.method,
+                        rag,
+                        theta=args.theta,
+                        with_llm=args.with_llm,
+                        llm_generator=llm_generator,
+                    ),
+                    ensure_ascii=False,
+                ))
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             return 2

@@ -76,7 +76,7 @@ class RunRQ2RealTest(unittest.TestCase):
             exit_code = real.main()
 
         self.assertEqual(exit_code, 2)
-        self.assertIn("LLM generation is not wired yet", stderr.getvalue())
+        self.assertIn("LLM generation", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_build_real_row_with_llm_uses_injected_generator(self):
@@ -105,6 +105,18 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertEqual(row["run_type"], "real_system_llm")
         self.assertEqual(row["generated_refs"], ["A"])
         self.assertTrue(row["validation_results"]["A"]["pass"])
+
+    def test_build_llm_prompt_contains_query_nodes_and_ref_instruction(self):
+        query = {"query_id": "Q001", "text": "citation evidence"}
+        nodes = [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "Every claim needs a source.", "score": 0.8}]
+
+        messages = real.build_llm_messages(query=query, method="full_graphrag", retrieved_nodes=nodes)
+
+        joined = "\n".join(message["content"] for message in messages)
+        self.assertIn("Q001", joined)
+        self.assertIn("citation evidence", joined)
+        self.assertIn("A", joined)
+        self.assertIn("[REF:A]", joined)
 
 
 if __name__ == "__main__":
