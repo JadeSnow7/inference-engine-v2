@@ -18,6 +18,7 @@ DEFAULT_INPUT = DEFAULT_ROOT / "data" / "rq2_traceability" / "norm_nodes.json"
 DEFAULT_OUTPUT = DEFAULT_ROOT / "data" / "rq2_traceability" / "norm_nodes_with_embeddings.json"
 API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 EMBED_MODEL = "text-embedding-v3"
+MAX_BATCH_SIZE = 10
 
 
 def build_embeddings(
@@ -28,6 +29,8 @@ def build_embeddings(
     batch_size: int = 25,
     sleep_seconds: float = 0.3,
 ) -> tuple[int, int]:
+    if batch_size > MAX_BATCH_SIZE:
+        raise ValueError(f"batch_size must be <= {MAX_BATCH_SIZE} for DashScope embeddings")
     if OpenAI is None:
         raise RuntimeError("openai package is required to build norm-node embeddings")
     client = OpenAI(api_key=api_key, base_url=API_BASE)
@@ -59,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build norm-node embeddings with DashScope text-embedding-v3.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--batch-size", type=int, default=25)
+    parser.add_argument("--batch-size", type=int, default=MAX_BATCH_SIZE)
     return parser.parse_args()
 
 

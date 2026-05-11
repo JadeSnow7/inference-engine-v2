@@ -36,6 +36,17 @@ class FakeOpenAI:
 
 
 class BuildNormEmbeddingsTest(unittest.TestCase):
+    def test_batch_size_above_dashscope_limit_fails_before_api_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "norm_nodes.json"
+            output = Path(tmp) / "norm_nodes_with_embeddings.json"
+            source.write_text(json.dumps([
+                {"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "citation source", "related": []},
+            ], ensure_ascii=False), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "batch_size"):
+                builder.build_embeddings(source, output, api_key="test-key", batch_size=11, sleep_seconds=0)
+
     def test_build_embeddings_writes_expected_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
