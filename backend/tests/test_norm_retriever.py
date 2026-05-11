@@ -131,6 +131,11 @@ class NormNodeRetrieverTest(unittest.TestCase):
             self.assertIn("type=规范条款", context)
             self.assertIn("dimension=引用格式", context)
 
+    def test_default_corpus_path_resolves_to_existing_raw_corpus(self):
+        from rag import norm_retriever
+
+        self.assertTrue((norm_retriever.RQ2_DIR / "norm_nodes.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

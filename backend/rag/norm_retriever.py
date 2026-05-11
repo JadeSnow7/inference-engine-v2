@@ -8,7 +8,16 @@ from typing import Any
 import numpy as np
 
 
-RQ2_DIR = Path(__file__).resolve().parents[2] / "data" / "rq2_traceability"
+def _resolve_rq2_dir() -> Path:
+    module_path = Path(__file__).resolve()
+    for parent in module_path.parents:
+        candidate = parent / "data" / "rq2_traceability"
+        if (candidate / "norm_nodes.json").exists():
+            return candidate
+    return module_path.parents[1] / "data" / "rq2_traceability"
+
+
+RQ2_DIR = _resolve_rq2_dir()
 DEFAULT_EMBEDDED_CORPUS = RQ2_DIR / "norm_nodes_with_embeddings.json"
 DEFAULT_RAW_CORPUS = RQ2_DIR / "norm_nodes.json"
 
