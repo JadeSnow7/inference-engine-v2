@@ -13,4 +13,5 @@ data/*
 secret/
 node_modules/
 dist/
+audit-artifacts/
 backend/data/*.gpickle

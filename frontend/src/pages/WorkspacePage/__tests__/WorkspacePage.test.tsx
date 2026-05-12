@@ -39,6 +39,7 @@ vi.mock('@xyflow/react', () => ({
 import WorkspacePage from '../WorkspacePage'
 import { useWorkspaceStore } from '../../../store/workspace'
 import { VersionList } from '../../../features/version/VersionList'
+import { aiSuggestion } from '../../../mocks/workspaceMock'
 import type { DocumentBlock, DocumentVersionSnapshot } from '../../../types/workspace'
 
 function installMemoryStorage() {
@@ -305,7 +306,6 @@ describe('WorkspacePage', () => {
 
     render(<WorkspacePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
     expect(screen.getByText('暂无待处理修改建议')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
@@ -333,7 +333,6 @@ describe('WorkspacePage', () => {
 
     render(<WorkspacePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
     fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
       target: { value: '请增强传统方法段落' },
     })
@@ -351,6 +350,8 @@ describe('WorkspacePage', () => {
   })
 
   it('accepts only the current diff change and keeps the remaining suggestion open', async () => {
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+
     render(<WorkspacePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '2. 新增' }))
@@ -372,7 +373,6 @@ describe('WorkspacePage', () => {
 
     render(<WorkspacePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
     fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
       target: { value: '请增强传统方法段落' },
     })
@@ -501,7 +501,6 @@ describe('WorkspacePage', () => {
 
     render(<WorkspacePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
     fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
       target: { value: '请增强传统方法段落' },
     })
@@ -566,7 +565,7 @@ describe('WorkspacePage', () => {
     expect(screen.queryByText(/undefined/)).not.toBeInTheDocument()
   })
 
-  it('falls back to the mock suggestion when SSE fails and supports reject', async () => {
+  it('shows an error without creating a mock suggestion when SSE fails', async () => {
     connectSSE.mockImplementation((_message, handlers) => {
       handlers.onStage('连接中')
       handlers.onError('连接中断，请重试')
@@ -575,17 +574,16 @@ describe('WorkspacePage', () => {
 
     render(<WorkspacePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
     fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
       target: { value: '请增强传统方法段落' },
     })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
-    expect(screen.getByText('当前流式生成连接异常，系统已切换到本地示例建议以保留审查流程。')).toBeInTheDocument()
-    expect(screen.getByText(/我已经分析了您的文档/)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '拒绝全部' }))
-
+    expect(screen.getByText('AI 生成失败')).toBeInTheDocument()
+    expect(screen.getByText(/连接中断，请重试/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '接受全部' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/我已经分析了您的文档/)).not.toBeInTheDocument()
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
     expect(screen.getByText('暂无待处理修改建议')).toBeInTheDocument()
   })
 

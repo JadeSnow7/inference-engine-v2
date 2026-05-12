@@ -25,7 +25,6 @@ export function useWritingAnalysis() {
     } catch (err) {
       const message = err instanceof Error ? err.message : '写作分析失败，请稍后重试。'
       setError(message)
-      throw err
     } finally {
       setLoading(false)
     }

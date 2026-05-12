@@ -86,6 +86,8 @@ export interface ReferenceItem {
   year?: number
   venue?: string
   score?: number
+  excerpt?: string
+  url?: string
 }
 
 export interface WorkspaceGraphNode {

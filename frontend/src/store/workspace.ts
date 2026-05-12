@@ -199,7 +199,7 @@ function initialWorkspaceState() {
   const documentVersions = createInitialVersionSnapshots(documentBlocks)
 
   return {
-    activeConversationId: workspaceMock.conversations[0]?.id ?? null,
+    activeConversationId: null,
     activeVersionId: documentVersions[0]?.id ?? null,
     activeSessionId: null,
     previewVersionId: null,
@@ -216,7 +216,7 @@ function initialWorkspaceState() {
     restoreSessionNotice: '',
     restoredMessages: [],
     lastRestoreNotice: null,
-    currentSuggestion: cloneSuggestion(workspaceMock.aiSuggestion),
+    currentSuggestion: null,
     citationEnhancementRequest: null,
     aiRunMode: 'rewrite' as AIRunMode,
     currentChangeIndex: 0,
@@ -897,9 +897,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (!suggestion) {
       return {
         aiRunStatus: 'error',
-        aiStageLabel: '当前流式生成连接异常，系统已切换到本地示例建议以保留审查流程。',
+        aiStageLabel: 'AI 生成失败',
         aiErrorMessage: 'AI 未返回可用于改写的文本',
-        currentSuggestion: cloneSuggestion(workspaceMock.aiSuggestion),
+        currentSuggestion: null,
         currentChangeIndex: 0,
         aiRunMode: 'rewrite' as AIRunMode,
         pendingBeforeBlocks: [],
@@ -918,9 +918,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   }),
   failAIRunWithFallback: (message) => set({
     aiRunStatus: 'error',
-    aiStageLabel: '当前流式生成连接异常，系统已切换到本地示例建议以保留审查流程。',
+    aiStageLabel: 'AI 生成失败',
     aiErrorMessage: message,
-    currentSuggestion: cloneSuggestion(workspaceMock.aiSuggestion),
+    currentSuggestion: null,
     currentChangeIndex: 0,
     aiRunMode: 'rewrite' as AIRunMode,
     pendingBeforeBlocks: [],
@@ -962,6 +962,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       year: reference.year,
       venue: reference.source,
       score: reference.score,
+      excerpt: reference.excerpt,
+      url: reference.url,
     }))),
   })),
   clearRagArtifacts: () => set({

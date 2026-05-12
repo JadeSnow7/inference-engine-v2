@@ -1,4 +1,5 @@
 import { BookMarked, ExternalLink, FileText, Filter } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { Badge, Button, Card, StateBlock } from '../components/ui'
 import { useWorkspaceStore } from '../store/workspace'
 
@@ -9,6 +10,7 @@ const curatedEvidence = [
 ]
 
 export default function Library() {
+  const navigate = useNavigate()
   const references = useWorkspaceStore(state => state.references)
   const evidence = references.length > 0 ? references : curatedEvidence
 
@@ -26,9 +28,9 @@ export default function Library() {
               汇总工作台、写作分析和历史会话产生的文献与规范证据，用于引用核查和综述写作。
             </p>
           </div>
-          <Button variant="secondary">
+          <Button variant="secondary" disabled title="筛选暂未接入">
             <Filter size={16} />
-            当前筛选：全部证据
+            筛选暂未接入
           </Button>
         </header>
 
@@ -66,7 +68,7 @@ export default function Library() {
                 <div className="font-semibold text-scholar-text-primary">AI 摘要</div>
                 <p className="mt-2 leading-6">近期证据集中在学习反馈、教学评价和规范引用三个方向，可作为文献综述的二级结构。</p>
               </div>
-              <Button variant="secondary" className="w-full">
+              <Button variant="secondary" className="w-full" onClick={() => navigate('/workbench')}>
                 <ExternalLink size={16} />
                 打开工作台引用面板
               </Button>

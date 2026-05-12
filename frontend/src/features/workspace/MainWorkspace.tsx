@@ -8,7 +8,7 @@ export function MainWorkspace() {
       <div className="min-h-0 flex-[1.35] overflow-hidden">
         <DocumentEditor />
       </div>
-      <section className="flex min-h-[360px] flex-[0.95] flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm">
+      <section className="flex min-h-[280px] flex-[0.95] flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm md:min-h-[360px]">
         <AISuggestionPanel />
         <AIChatInput />
       </section>

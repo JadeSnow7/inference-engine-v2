@@ -12,7 +12,6 @@ import {
   Settings,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { workspaceMock } from '../../mocks/workspaceMock'
 import { useWorkspaceStore } from '../../store/workspace'
 import { VersionList } from '../version/VersionList'
 
@@ -25,7 +24,6 @@ const resourceItems = [
 
 export function LeftSidebar() {
   const activeConversationId = useWorkspaceStore(state => state.activeConversationId)
-  const setActiveConversation = useWorkspaceStore(state => state.setActiveConversation)
   const setRightPanelMode = useWorkspaceStore(state => state.setRightPanelMode)
   const resetWorkspace = useWorkspaceStore(state => state.resetWorkspace)
   const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
@@ -55,29 +53,14 @@ export function LeftSidebar() {
           <SectionTitle icon={<Bot size={15} />} title="对话历史" />
           <label className="mb-3 block">
             <input
+              disabled
+              aria-label="对话搜索暂未接入"
               className="h-9 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas px-3 text-xs outline-none transition focus:border-scholar-primary/40 focus:bg-white"
-              placeholder="搜索对话..."
+              placeholder="对话搜索暂未接入"
             />
           </label>
-          <div className="space-y-1.5">
-            {workspaceMock.conversations.map(item => {
-              const active = activeConversationId === item.id
-              return (
-                <button
-                  key={item.id}
-                  className={`w-full rounded-xl px-3 py-2 text-left transition ${
-                    active ? 'bg-blue-50 text-scholar-primary shadow-sm' : 'text-scholar-text-secondary hover:bg-scholar-bg-canvas'
-                  }`}
-                  onClick={() => setActiveConversation(item.id)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs font-semibold">{item.title}</span>
-                    <span className="shrink-0 text-[11px] text-scholar-text-weak">{item.timeLabel}</span>
-                  </div>
-                  <p className="mt-1 truncate text-[11px] text-scholar-text-weak">{item.preview}</p>
-                </button>
-              )
-            })}
+          <div className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3 text-xs text-scholar-text-secondary">
+            {activeConversationId ? `当前会话：${activeConversationId}` : '暂无已恢复的历史会话'}
           </div>
         </section>
 

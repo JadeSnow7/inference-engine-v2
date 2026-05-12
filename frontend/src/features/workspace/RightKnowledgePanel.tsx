@@ -14,7 +14,7 @@ export function RightKnowledgePanel() {
   const hasGraphNodes = graphNodes.length > 0
 
   return (
-    <aside className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm">
+    <aside className="hidden w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm 2xl:flex">
       <div className="flex items-center justify-between border-b border-scholar-border px-4 py-3">
         <h2 className="text-base font-black">知识图谱</h2>
         <div className="flex rounded-xl bg-scholar-bg-canvas p-1">

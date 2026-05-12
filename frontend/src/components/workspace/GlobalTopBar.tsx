@@ -1,7 +1,9 @@
 import { Bell, Plus, Search, Settings } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useUserStore } from '../../store/user'
 
 export function GlobalTopBar() {
+  const navigate = useNavigate()
   const userId = useUserStore(state => state.userId)
 
   return (
@@ -10,25 +12,32 @@ export function GlobalTopBar() {
         <label className="relative flex max-w-[440px] items-center">
           <Search className="absolute left-3 text-scholar-text-weak" size={16} />
           <input
+            disabled
+            aria-label="全局搜索暂未接入"
             className="h-10 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas pl-9 pr-3 text-sm outline-none transition focus:border-scholar-primary/40 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            placeholder="搜索课程、文献、笔记、知识节点"
+            placeholder="全局搜索暂未接入"
           />
         </label>
       </div>
 
-      <button className="hidden items-center gap-2 rounded-xl bg-scholar-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-scholar-primary-hover md:flex">
+      <button
+        className="hidden items-center gap-2 rounded-xl bg-scholar-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-scholar-primary-hover md:flex"
+        onClick={() => navigate('/workbench')}
+      >
         <Plus size={16} />
         新建
       </button>
       <button
-        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"
-        aria-label="通知"
+        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-scholar-text-secondary"
+        aria-label="通知暂未接入"
+        disabled
       >
         <Bell size={18} />
       </button>
       <button
-        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"
-        aria-label="设置"
+        className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-scholar-text-secondary"
+        aria-label="设置暂未接入"
+        disabled
       >
         <Settings size={18} />
       </button>

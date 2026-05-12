@@ -5,7 +5,12 @@ import { CitationHighlight } from './CitationHighlight'
 import { DocumentOutlineCard } from './DocumentOutlineCard'
 import { DocumentToolbar } from './DocumentToolbar'
 
-const actionLabels = ['改写', '扩写', '引用增强', '检查逻辑']
+const actionItems = [
+  { label: '改写未接入', kind: 'disabled' },
+  { label: '扩写未接入', kind: 'disabled' },
+  { label: '引用增强', kind: 'citation' },
+  { label: '逻辑检查未接入', kind: 'disabled' },
+] as const
 
 export function DocumentEditor() {
   const documentBlocks = useWorkspaceStore(state => state.documentBlocks)
@@ -270,23 +275,28 @@ function DocumentBlockView({
       )}
       <div className="absolute right-3 top-3 hidden items-center gap-1 rounded-xl border border-blue-100 bg-white/95 p-1 shadow-lg shadow-blue-100 group-hover:flex">
         <Sparkles size={14} className="ml-1 text-scholar-primary" />
-        {actionLabels.map(label => (
+        {actionItems.map(item => {
+          const isCitation = item.kind === 'citation'
+          const disabled = !isCitation || isCitationEnhanceDisabled
+
+          return (
           <button
-            key={label}
-            aria-label={label === '引用增强' ? `引用增强 ${block.id}` : undefined}
+            key={item.label}
+            aria-label={isCitation ? `引用增强 ${block.id}` : item.label}
             className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
-              label === '引用增强' && isCitationEnhanceDisabled
-                ? 'cursor-not-allowed text-amber-500'
+              disabled
+                ? 'cursor-not-allowed text-scholar-text-weak'
                 : 'text-scholar-text-secondary hover:bg-blue-50 hover:text-scholar-primary'
             }`}
-            onClick={label === '引用增强' ? onCitationEnhance : undefined}
-            disabled={label === '引用增强' && isCitationEnhanceDisabled}
+            onClick={isCitation ? onCitationEnhance : undefined}
+            disabled={disabled}
           >
-            {label === '引用增强' && isEnhancing
+            {isCitation && isEnhancing
               ? <Loader2 size={12} className="animate-spin" />
-              : label}
+              : item.label}
           </button>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
