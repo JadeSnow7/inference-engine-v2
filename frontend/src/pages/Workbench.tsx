@@ -301,9 +301,9 @@ export default function Workbench() {
                   />
                   <ActionButton
                     icon={<LinkIcon size={14} />}
-                    text="一键导出为飞书云文档"
+                    text="飞书导出未启用"
                     highlight
-                    onClick={() => alert('飞书导出（待 P4 接入）')}
+                    disabled
                   />
                 </div>
               )}
@@ -395,16 +395,17 @@ function Chip({ text, onClick }: { text: string; onClick: () => void }) {
 }
 
 function ActionButton({
-  icon, text, highlight, onClick,
+  icon, text, highlight, onClick, disabled = false,
 }: {
-  icon: React.ReactNode; text: string; highlight?: boolean; onClick: () => void
+  icon: React.ReactNode; text: string; highlight?: boolean; onClick?: () => void; disabled?: boolean
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
         highlight
-          ? 'bg-blue-50 text-scholar-primary border-blue-100 hover:bg-blue-100'
+          ? 'bg-blue-50 text-scholar-primary border-blue-100 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50'
           : 'bg-scholar-bg-surface text-scholar-text-secondary border-scholar-border hover:bg-scholar-bg-canvas hover:text-scholar-text-primary'
       }`}
     >

@@ -108,7 +108,7 @@ export function LeftSidebar() {
       </div>
 
       <div className="flex items-center justify-around border-t border-scholar-border bg-scholar-bg-canvas/60 p-3">
-        <SidebarTool label="设置" icon={<Settings size={16} />} onClick={() => setRestoreSessionNotice('设置面板将在下一阶段接入')} />
+        <SidebarTool label="设置暂不可用" icon={<Settings size={16} />} disabled />
         <SidebarTool label="帮助" icon={<HelpCircle size={16} />} onClick={() => setRestoreSessionNotice('提示：选择正文段落后，可在底部输入修改或规范审查需求')} />
         <SidebarTool label="全屏" icon={<Maximize2 size={16} />} onClick={() => void document.documentElement.requestFullscreen?.()} />
       </div>
@@ -125,11 +125,12 @@ function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
   )
 }
 
-function SidebarTool({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+function SidebarTool({ icon, label, onClick, disabled = false }: { icon: ReactNode; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
     <button
-      className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-white hover:text-scholar-primary"
+      className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-white hover:text-scholar-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-scholar-text-secondary"
       aria-label={label}
+      disabled={disabled}
       onClick={onClick}
     >
       {icon}

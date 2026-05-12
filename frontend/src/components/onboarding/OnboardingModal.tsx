@@ -43,6 +43,7 @@ export function OnboardingModal({ onComplete }: Props) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Answers>({})
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const setProfile = useUserStore((s) => s.setProfile)
 
   const current = STEPS[step]
@@ -50,6 +51,7 @@ export function OnboardingModal({ onComplete }: Props) {
 
   const handleNext = async () => {
     if (!selected) return
+    setError('')
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1)
       return
@@ -60,12 +62,12 @@ export function OnboardingModal({ onComplete }: Props) {
         method: 'POST',
         body: JSON.stringify({ q13: answers.q13, q14: answers.q14, q9: answers.q9 }),
       })
-    } catch {
-      // Non-critical — complete onboarding even if save fails
-    } finally {
       setProfile({ hasCompletedOnboarding: true })
-      setLoading(false)
       onComplete()
+    } catch {
+      setError('保存失败，请重试。')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -80,6 +82,12 @@ export function OnboardingModal({ onComplete }: Props) {
           selected={selected}
           onSelect={(value) => setAnswers((a) => ({ ...a, [current.key]: value }))}
         />
+
+        {error && (
+          <p role="alert" className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+          </p>
+        )}
 
         <div className="flex items-center justify-between mt-6">
           <div className="flex gap-1.5">

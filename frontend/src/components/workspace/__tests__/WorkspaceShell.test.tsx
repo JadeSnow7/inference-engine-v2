@@ -10,12 +10,14 @@ const fetchSessions = vi.hoisted(() => vi.fn())
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
 const deleteSession = vi.hoisted(() => vi.fn())
+const fetchProfile = vi.hoisted(() => vi.fn())
 
 vi.mock('../../../api/sessions', () => ({
   fetchSessions: (...args: unknown[]) => fetchSessions(...args),
   fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
   fetchSessionArtifact: (...args: unknown[]) => fetchSessionArtifact(...args),
   deleteSession: (...args: unknown[]) => deleteSession(...args),
+  fetchProfile: (...args: unknown[]) => fetchProfile(...args),
 }))
 
 vi.mock('@xyflow/react', () => ({
@@ -85,6 +87,15 @@ describe('WorkspaceShell routes', () => {
       final_outline: '一、课程背景\n二、规范证据',
     })
     deleteSession.mockResolvedValue({ deleted: true })
+    fetchProfile.mockResolvedValue({
+      teaching_style: 'step_by_step',
+      feedback_verbosity: 'balanced',
+      writing_stage: '正在写第一篇',
+      major: 'CS',
+      weak_points: {},
+      total_sessions: 1,
+      last_session_at: 1778510000,
+    })
   })
 
   it('renders workbench inside the same global workspace shell as the rest of the app', () => {

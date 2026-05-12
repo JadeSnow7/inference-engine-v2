@@ -9,12 +9,17 @@ interface Profile {
   hasCompletedOnboarding: boolean
 }
 
+type ProfileStatus = 'idle' | 'loading' | 'loaded' | 'error'
+
 interface UserState {
   token: string | null
   userId: string | null
   profile: Profile
+  profileStatus: ProfileStatus
+  profileError: string
   setToken: (token: string, userId?: string) => void
   setProfile: (profile: Partial<Profile>) => void
+  setProfileStatus: (status: ProfileStatus, error?: string) => void
   logout: () => void
 }
 
@@ -31,10 +36,14 @@ export const useUserStore = create<UserState>()(
       token: null,
       userId: null,
       profile: { ...defaultProfile },
+      profileStatus: 'idle',
+      profileError: '',
 
       setToken: (token, userId) => set((s) => {
         s.token = token
         s.userId = userId ?? null
+        s.profileStatus = 'idle'
+        s.profileError = ''
         localStorage.setItem('edu_token', token)
       }),
 
@@ -42,10 +51,17 @@ export const useUserStore = create<UserState>()(
         Object.assign(s.profile, partial)
       }),
 
+      setProfileStatus: (status, error = '') => set((s) => {
+        s.profileStatus = status
+        s.profileError = error
+      }),
+
       logout: () => set((s) => {
         s.token = null
         s.userId = null
         s.profile = { ...defaultProfile }
+        s.profileStatus = 'idle'
+        s.profileError = ''
         localStorage.removeItem('edu_token')
       }),
     })),
