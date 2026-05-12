@@ -1,3 +1,7 @@
+# Demo Only: Academic Workbench FE
+
+> This directory is a non-production design/demo prototype. Do not use it for deployment, production bug fixes, or release validation. The only production frontend is `../frontend`.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

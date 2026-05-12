@@ -1,6 +1,6 @@
 # Inference Engine V2
 
-独立演示版 AI 教学辅助平台推理引擎。
+ScholarScript 生产联调工程。生产前端入口只有 `frontend/`；`academic-workbench-fe/` 是早期设计/demo 工程，不参与部署，也不应作为线上 UI 使用。
 
 ## 启动
 
@@ -24,9 +24,14 @@ npm run dev
 默认链路：
 - Redis: `redis://localhost:6379/0`
 - Backend: `http://localhost:8000`
-- Frontend: `http://localhost:5173`，通过 Vite 代理 `/api`
+- Frontend: `http://localhost:5173`，通过 Vite 代理 `/api` 和 `/v1`
 
 `backend/.env.example` 用于本地开发；仓库根目录 `.env.example` 可用于 Docker Compose 场景。
+
+## 前端入口
+
+- `frontend/`: 唯一生产 React/Vite 前端，Docker Compose 的 `frontend` 服务也从这里构建。
+- `academic-workbench-fe/`: demo-only 设计样机。它没有完整生产 API 集成，不用于部署、不用于验收生产问题。
 
 ## 环境变量
 
