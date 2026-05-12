@@ -1,4 +1,4 @@
-import { BookOpen, LayoutDashboard, Network, Sparkles } from 'lucide-react'
+import { BookOpen, LayoutDashboard, Network, PenLine, Sparkles } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const navItems = [
@@ -6,6 +6,7 @@ const navItems = [
   { label: '课程', path: '/courses', icon: BookOpen },
   { label: '学术工作台', path: '/workbench', icon: Sparkles },
   { label: '知识图谱', path: '/discovery', icon: Network },
+  { label: 'AI 写作', path: '/writing', icon: PenLine },
 ]
 
 export function GlobalSidebar() {

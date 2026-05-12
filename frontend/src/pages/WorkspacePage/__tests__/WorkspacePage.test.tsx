@@ -1,11 +1,16 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MouseEvent, ReactNode } from 'react'
 
 const connectSSE = vi.hoisted(() => vi.fn())
+const analyzeWriting = vi.hoisted(() => vi.fn())
 
 vi.mock('../../../api/sse', () => ({
   connectSSE: (...args: unknown[]) => connectSSE(...args),
+}))
+
+vi.mock('../../../api/writing', () => ({
+  analyzeWriting: (...args: unknown[]) => analyzeWriting(...args),
 }))
 
 vi.mock('@xyflow/react', () => ({
@@ -89,6 +94,13 @@ describe('WorkspacePage', () => {
   beforeEach(() => {
     installMemoryStorage()
     connectSSE.mockReset()
+    analyzeWriting.mockReset()
+    analyzeWriting.mockResolvedValue({
+      nodes: [],
+      expanded_context: [],
+      validation: [],
+      references: [],
+    })
     window.localStorage.removeItem('workbench:documentBlocks:v1')
     window.localStorage.removeItem('workbench:workspaceSnapshot:v1')
     useWorkspaceStore.getState().resetWorkspace()
@@ -184,6 +196,12 @@ describe('WorkspacePage', () => {
   })
 
   it('runs citation enhancement from a paragraph action through SSE as a reviewable suggestion', async () => {
+    analyzeWriting.mockResolvedValueOnce({
+      nodes: [],
+      expanded_context: [],
+      validation: [],
+      references: [{ id: 'ref-writing-citation', title: 'Writing Citation Norm', source: 'Norm Corpus', score: 0.88 }],
+    })
     connectSSE.mockImplementation((message, handlers) => {
       expect(message).toContain('引用增强')
       expect(message).toContain('本文旨在综述近年来基于深度学习的图像分类方法')
@@ -198,6 +216,11 @@ describe('WorkspacePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '引用增强 block-intro-2' }))
 
+    expect(analyzeWriting).toHaveBeenCalledWith({
+      text: expect.stringContaining('本文旨在综述近年来基于深度学习的图像分类方法'),
+      mode: 'citation',
+      session_id: undefined,
+    })
     expect(connectSSE).toHaveBeenCalledTimes(1)
     expect(useWorkspaceStore.getState().selectedBlockId).toBe('block-intro-2')
     expect(useWorkspaceStore.getState().currentSuggestion?.targetBlockIds).toEqual(['block-intro-2'])
@@ -205,6 +228,9 @@ describe('WorkspacePage', () => {
     expect(screen.getByText('引用增强完成')).toBeInTheDocument()
     expect(screen.getAllByText(/结合最新研究补充其结构演进/).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Citation Candidate' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(useWorkspaceStore.getState().references.some(reference => reference.id === 'ref-writing-citation')).toBe(true)
+    })
   })
 
   it('selects the first cited document block when a graph node is clicked', async () => {
@@ -615,4 +641,3 @@ describe('WorkspacePage', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
-

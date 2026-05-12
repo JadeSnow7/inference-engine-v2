@@ -1,6 +1,7 @@
 import { BookCheck, Globe2, Library, Network, Send, Square, WandSparkles, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { connectSSE, type SSEController } from '../../api/sse'
+import { analyzeWriting } from '../../api/writing'
 import { useLayoutStore } from '../../store/layout'
 import { useWorkspaceStore } from '../../store/workspace'
 
@@ -72,6 +73,18 @@ export function AIChatInput() {
       `用户需求：${trimmedRequest}`,
       `目标段落：${targetBlock.content}`,
     ].filter(Boolean).join('\n\n')
+
+    if (mode === 'citation_enhance') {
+      void analyzeWriting({
+        text: targetBlock.content,
+        mode: 'citation',
+        session_id: activeSessionId ?? undefined,
+      }).then((analysis) => {
+        useWorkspaceStore.getState().upsertReferences(analysis.references)
+      }).catch(() => {
+        // Citation analysis enriches evidence when available; SSE generation remains the primary user action.
+      })
+    }
 
     controllerRef.current = connectSSE(prompt, {
       onSessionId: (sessionId) => setActiveSessionId(sessionId),
