@@ -1,4 +1,5 @@
 from dataclasses import asdict
+import os
 from pathlib import Path
 
 import networkx as nx
@@ -46,7 +47,7 @@ class KnowledgeGraph:
         return self.g
 
 
-def build_demo_graph() -> KnowledgeGraph:
+def build_demo_graph(encoder=None) -> KnowledgeGraph:
     """Build a demonstration knowledge graph for the IC power prediction domain.
 
     Uses real sentence-transformer embeddings so cosine-similarity retrieval
@@ -57,9 +58,10 @@ def build_demo_graph() -> KnowledgeGraph:
       ≥ 5  PaperNodes  with embeddings
       ≥ 2  ResearchGapNodes, with ≥ 1 having addressed_by = 0
     """
-    from sentence_transformers import SentenceTransformer  # local import — only needed at graph build time
+    if encoder is None:
+        from sentence_transformers import SentenceTransformer  # local import — only needed at graph build time
 
-    encoder = SentenceTransformer("BAAI/bge-small-zh-v1.5")
+        encoder = SentenceTransformer(os.getenv("EMBED_MODEL", "BAAI/bge-small-zh-v1.5"))
 
     def emb(text: str) -> np.ndarray:
         v = encoder.encode(text, normalize_embeddings=True)
@@ -197,5 +199,3 @@ def build_demo_graph() -> KnowledgeGraph:
     kg.add_edge("paper_timing",  "paper_llm_eda",  "cites", year=2024)
 
     return kg
-
-

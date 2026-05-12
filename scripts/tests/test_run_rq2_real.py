@@ -1,7 +1,9 @@
 import importlib.util
+import io
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -52,6 +54,69 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertEqual(row["run_type"], "real_system")
         self.assertEqual(row["generated_refs"], ["A"])
         self.assertTrue(row["validation_results"]["A"]["pass"])
+
+    def test_build_real_row_with_llm_fails_explicitly_until_generation_is_wired(self):
+        query = {"query_id": "Q001", "text": "citation evidence", "expected_ref_nodes": ["A"]}
+
+        with self.assertRaisesRegex(RuntimeError, "LLM generation is not wired yet"):
+            real.build_real_row(query, "full_graphrag", object(), theta=0.6, with_llm=True)
+
+    def test_main_reports_with_llm_boundary_without_traceback(self):
+        stderr = io.StringIO()
+        argv = [
+            "run_rq2_real.py",
+            "--root", str(Path("/app/inference-engine")),
+            "--method", "full_graphrag",
+            "--limit", "1",
+            "--real",
+            "--with-llm",
+        ]
+
+        with patch.object(sys, "argv", argv), patch("sys.stderr", stderr):
+            exit_code = real.main()
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("LLM generation", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_build_real_row_with_llm_uses_injected_generator(self):
+        query = {"query_id": "Q001", "text": "citation evidence", "expected_ref_nodes": ["A"]}
+
+        class FakeRAG:
+            def retrieve(self, text, *, top_k, graph_expand):
+                return [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "citation evidence", "score": 0.8}]
+
+        calls = []
+
+        def fake_generator(*, query, method, retrieved_nodes):
+            calls.append((query["query_id"], method, [node["node_id"] for node in retrieved_nodes]))
+            return "评价维度：规范溯源。\n问题定位：citation evidence\n规范依据：[REF:A]\n修改建议：revise citation."
+
+        row = real.build_real_row(
+            query,
+            "full_graphrag",
+            FakeRAG(),
+            theta=0.6,
+            with_llm=True,
+            llm_generator=fake_generator,
+        )
+
+        self.assertEqual(calls, [("Q001", "full_graphrag", ["A"])])
+        self.assertEqual(row["run_type"], "real_system_llm")
+        self.assertEqual(row["generated_refs"], ["A"])
+        self.assertTrue(row["validation_results"]["A"]["pass"])
+
+    def test_build_llm_prompt_contains_query_nodes_and_ref_instruction(self):
+        query = {"query_id": "Q001", "text": "citation evidence"}
+        nodes = [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "Every claim needs a source.", "score": 0.8}]
+
+        messages = real.build_llm_messages(query=query, method="full_graphrag", retrieved_nodes=nodes)
+
+        joined = "\n".join(message["content"] for message in messages)
+        self.assertIn("Q001", joined)
+        self.assertIn("citation evidence", joined)
+        self.assertIn("A", joined)
+        self.assertIn("[REF:A]", joined)
 
 
 if __name__ == "__main__":

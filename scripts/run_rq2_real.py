@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -46,9 +48,63 @@ def build_dry_run_row(query: dict[str, Any], method: str, *, theta: float) -> di
     }
 
 
-def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, theta: float, with_llm: bool) -> dict[str, Any]:
-    if with_llm:
-        raise RuntimeError("LLM generation is not wired yet; run without --with-llm for retrieval/binding collection")
+def build_llm_messages(*, query: dict[str, Any], method: str, retrieved_nodes: list[dict[str, Any]]) -> list[dict[str, str]]:
+    refs = " ".join(f"[REF:{node['node_id']}]" for node in retrieved_nodes[:3])
+    node_lines = "\n".join(
+        f"- {node['node_id']} ({node['node_type']}, {node['dimension']}): {node['text']}"
+        for node in retrieved_nodes
+    )
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You generate concise academic writing feedback. "
+                "Use the four Chinese labels: 评价维度, 问题定位, 规范依据, 修改建议. "
+                "When citing norm nodes, use exact reference tags such as [REF:node_id]."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"query_id: {query['query_id']}\n"
+                f"method: {method}\n"
+                f"writing snippet:\n{query['text']}\n\n"
+                f"retrieved norm nodes:\n{node_lines}\n\n"
+                f"Use these reference tags when relevant: {refs}"
+            ),
+        },
+    ]
+
+
+def build_dashscope_llm_generator(root: Path) -> Callable[..., str]:
+    backend_dir = root / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    import asyncio
+
+    try:
+        from core.stream import call_model_once
+    except Exception as exc:
+        raise RuntimeError(f"LLM generation dependency or config unavailable: {exc}") from exc
+
+    def generate(*, query: dict[str, Any], method: str, retrieved_nodes: list[dict[str, Any]]) -> str:
+        messages = build_llm_messages(query=query, method=method, retrieved_nodes=retrieved_nodes)
+        return asyncio.run(call_model_once(messages, temperature=0.2, thinking=False, max_tokens=800))
+
+    return generate
+
+
+def build_real_row(
+    query: dict[str, Any],
+    method: str,
+    rag: NormGraphRAG,
+    *,
+    theta: float,
+    with_llm: bool,
+    llm_generator: Callable[..., str] | None = None,
+) -> dict[str, Any]:
+    if with_llm and llm_generator is None:
+        raise RuntimeError("LLM generation is not wired yet; provide llm_generator or run without --with-llm")
     config = METHOD_CONFIGS[method]
     retrieved_nodes = []
     if config["retrieval"]:
@@ -57,8 +113,12 @@ def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, the
             top_k=1 if not config["graph_expand"] else 2,
             graph_expand=config["graph_expand"],
         )
-    generated_text = build_fallback_feedback(query, retrieved_nodes)
-    return build_retrieval_row(
+    generated_text = (
+        llm_generator(query=query, method=method, retrieved_nodes=retrieved_nodes)
+        if with_llm
+        else build_fallback_feedback(query, retrieved_nodes)
+    )
+    row = build_retrieval_row(
         query=query,
         method=method,
         retrieved_nodes=retrieved_nodes,
@@ -66,6 +126,9 @@ def build_real_row(query: dict[str, Any], method: str, rag: NormGraphRAG, *, the
         theta=theta,
         binding=bool(config["binding"]),
     )
+    if with_llm:
+        row["run_type"] = "real_system_llm"
+    return row
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -86,8 +149,23 @@ def main() -> int:
     queries = read_queries(root, args.limit)
     if args.real:
         rag = NormGraphRAG.from_root(root)
-        for query in queries:
-            print(json.dumps(build_real_row(query, args.method, rag, theta=args.theta, with_llm=args.with_llm), ensure_ascii=False))
+        try:
+            llm_generator = build_dashscope_llm_generator(root) if args.with_llm else None
+            for query in queries:
+                print(json.dumps(
+                    build_real_row(
+                        query,
+                        args.method,
+                        rag,
+                        theta=args.theta,
+                        with_llm=args.with_llm,
+                        llm_generator=llm_generator,
+                    ),
+                    ensure_ascii=False,
+                ))
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         return 0
     for query in queries:
         print(json.dumps(build_dry_run_row(query, args.method, theta=args.theta), ensure_ascii=False))

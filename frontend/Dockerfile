@@ -3,7 +3,7 @@ FROM node:20 AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install --registry=https://registry.npmmirror.com
+RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 COPY . .
 RUN npm run build

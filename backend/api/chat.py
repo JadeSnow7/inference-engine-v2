@@ -30,7 +30,14 @@ async def chat(req: ChatRequest, request: Request, user_id: str = Depends(get_cu
     app_state = request.app.state
     session_id = await app_state.conv_manager.ensure_session(user_id, req.session_id, req.message)
     stream = (
-        norms_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store)
+        norms_loop(
+            user_id,
+            session_id,
+            req.message,
+            app_state.conv_manager,
+            app_state.profile_store,
+            getattr(app_state, "norm_retriever", None),
+        )
         if (req.mode or "").strip().lower() == "norms"
         else main_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag)
     )
