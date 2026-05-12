@@ -8,6 +8,7 @@ import Courses from './pages/Courses'
 import WorkspacePage from './pages/WorkspacePage'
 import Discovery from './pages/Discovery'
 import Writing from './pages/Writing'
+import Library from './pages/Library'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="courses" element={<Courses />} />
           <Route path="workbench" element={<WorkspacePage embedded />} />
+          <Route path="library" element={<Library />} />
           <Route path="discovery" element={<Discovery />} />
           <Route path="writing" element={<Writing />} />
           <Route path="chat" element={<ChatPage />} />

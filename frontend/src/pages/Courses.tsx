@@ -1,84 +1,146 @@
-import { useNavigate } from 'react-router-dom';
-import { useLayoutStore } from '../store/layout';
-import { FileText, ChevronRight, BrainCircuit } from 'lucide-react';
-import { Button, Card } from '../components/ui';
+import { ArrowRight, BookOpen, ChevronRight, FileText, Network, Users } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Badge, Button, Card } from '../components/ui'
+import { useLayoutStore } from '../store/layout'
 
-export default function Courses() {
-  const navigate = useNavigate();
-  const setWorkbenchContext = useLayoutStore(state => state.setWorkbenchContext);
-
-  const handleTakeToWorkbench = (title: string, type: string) => {
-    setWorkbenchContext({
-      sourceTitle: title,
-      actionType: type as 'outline' | 'review' | 'gap',
-      courseTitle: 'Principles of Microeconomics',
-      sourceType: type === 'review' ? 'paper' : 'lecture',
-      createdAt: new Date().toISOString(),
-    });
-    navigate('/workbench');
-  };
-
-  return (
-    <div className="p-6 md:p-10 w-full max-w-5xl mx-auto h-full flex flex-col">
-      <h1 className="text-2xl font-bold mb-6 border-b border-scholar-border pb-4">Principles of Microeconomics</h1>
-
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-scholar-text-primary mb-3">课程提纲与关键文献</h2>
-
-          <ResourceCard
-            title="The Theory of the Firm - Market Equilibrium"
-            type="PDF Document"
-            onExtract={() => handleTakeToWorkbench('Theory of the Firm', 'outline')}
-          />
-          <ResourceCard
-            title="Consumer Surplus in Digital Economies"
-            type="Academic Paper"
-            onExtract={() => handleTakeToWorkbench('Consumer Surplus in Digital Economies', 'review')}
-          />
-          <ResourceCard
-            title="Behavioral Economics Foundations"
-            type="Lecture Notes"
-            onExtract={() => handleTakeToWorkbench('Behavioral Economics Foundations', 'gap')}
-          />
-        </div>
-
-        <Card className="h-fit" title="Course AI Assistant">
-          <div className="flex items-center space-x-2 text-scholar-academic mb-4">
-            <BrainCircuit size={20} />
-          </div>
-          <p className="text-sm text-scholar-text-secondary leading-relaxed mb-4">
-            针对于微观经济学的学习材料，您可以随时向我提问，或者选择具体的文献导入到学术工作台中生成你的专属文献综述。
-          </p>
-          <Button
-            onClick={() => navigate('/workbench')}
-            className="w-full">
-            进入空白工作台
-          </Button>
-        </Card>
-      </div>
-    </div>
-  );
+interface ResearchSpace {
+  title: string
+  teacher: string
+  topic: string
+  literatureCount: number
+  graphUpdates: number
+  status: string
+  materialTitle: string
+  materialType: 'outline' | 'review' | 'gap'
 }
 
-function ResourceCard({ title, type, onExtract }: { title: string; type: string; onExtract: () => void }) {
+const spaces: ResearchSpace[] = [
+  {
+    title: 'Principles of Microeconomics',
+    teacher: 'Prof. John Doe',
+    topic: '大语言模型在教育领域的应用综述',
+    literatureCount: 24,
+    graphUpdates: 5,
+    status: '正在撰写文献综述',
+    materialTitle: 'Theory of the Firm',
+    materialType: 'outline',
+  },
+  {
+    title: 'Research Methods in Education',
+    teacher: 'Dr. Lin Chen',
+    topic: 'AI 学习反馈工具的课堂成效研究',
+    literatureCount: 18,
+    graphUpdates: 3,
+    status: '等待规范校验',
+    materialTitle: 'A Survey on AI-Powered Educational Tools',
+    materialType: 'review',
+  },
+  {
+    title: 'Academic Writing',
+    teacher: 'Writing Center',
+    topic: '本科论文结构与引用规范',
+    literatureCount: 9,
+    graphUpdates: 2,
+    status: '需要补充引用证据',
+    materialTitle: 'HUST Undergraduate Thesis Norms',
+    materialType: 'gap',
+  },
+]
+
+export default function Courses() {
+  const navigate = useNavigate()
+  const setWorkbenchContext = useLayoutStore(state => state.setWorkbenchContext)
+
+  const handleTakeToWorkbench = (space: ResearchSpace) => {
+    setWorkbenchContext({
+      sourceTitle: space.materialTitle,
+      actionType: space.materialType,
+      courseTitle: space.title,
+      sourceType: space.materialType === 'review' ? 'paper' : 'lecture',
+      createdAt: new Date().toISOString(),
+    })
+    navigate('/workbench')
+  }
+
+  const handleOpenBlank = () => {
+    setWorkbenchContext({
+      sourceTitle: '大语言模型在教育领域的应用综述',
+      actionType: 'blank',
+      courseTitle: 'Research Workspace',
+      sourceType: 'manual',
+      createdAt: new Date().toISOString(),
+    })
+    navigate('/workbench')
+  }
+
   return (
-    <Card className="flex flex-col justify-between p-4 transition-shadow hover:shadow-card sm:flex-row sm:items-center">
-      <div className="flex items-start space-x-3 mb-3 sm:mb-0">
-        <div className="mt-1 p-2 bg-blue-50 text-blue-500 rounded-md"><FileText size={18} /></div>
-        <div>
-          <h4 className="font-semibold text-scholar-text-primary text-[15px]">{title}</h4>
-          <span className="text-xs text-scholar-text-weak uppercase tracking-wider font-semibold">{type}</span>
-        </div>
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
+        <header className="flex flex-col gap-4 border-b border-scholar-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-scholar-primary">
+              <BookOpen size={18} />
+              课程研究入口
+            </div>
+            <h1 className="text-2xl font-bold text-scholar-text-primary">研究空间</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-scholar-text-secondary">
+              每门课程都作为一个可进入工作台的研究空间，保留主题、文献、图谱更新和写作状态。
+            </p>
+          </div>
+          <Button onClick={handleOpenBlank}>
+            进入研究工作台
+            <ArrowRight size={16} />
+          </Button>
+        </header>
+
+        <section className="grid gap-5 xl:grid-cols-3">
+          {spaces.map(space => (
+            <Card key={space.title} className="flex min-h-[320px] flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-scholar-text-primary">{space.title}</h2>
+                    <p className="mt-1 flex items-center gap-1 text-xs font-medium text-scholar-text-secondary">
+                      <Users size={13} />
+                      {space.teacher}
+                    </p>
+                  </div>
+                  <Badge tone="primary">{space.status}</Badge>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-scholar-border bg-scholar-bg-canvas p-4">
+                  <p className="text-xs font-semibold text-scholar-text-weak">当前研究主题</p>
+                  <h3 className="mt-2 text-base font-bold leading-6 text-scholar-text-primary">{space.topic}</h3>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Stat label="文献" value={`${space.literatureCount} 篇`} icon={<FileText size={15} />} />
+                  <Stat label="图谱更新" value={`${space.graphUpdates} 个`} icon={<Network size={15} />} />
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <Button onClick={() => handleTakeToWorkbench(space)} className="w-full">
+                  载入工作台剖析
+                  <ChevronRight size={16} />
+                </Button>
+                <Button variant="secondary" onClick={() => navigate('/library')} className="w-full">
+                  查看课程证据
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </section>
       </div>
-      <Button
-        variant="secondary"
-        onClick={onExtract}
-        className="min-h-8 shrink-0 px-3 py-1.5 text-scholar-academic"
-      >
-        <span>载入工作台剖析</span>
-        <ChevronRight size={16} />
-      </Button>
-    </Card>
-  );
+    </div>
+  )
+}
+
+function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-scholar-border bg-white px-3 py-2">
+      <div className="flex items-center gap-2 text-xs font-semibold text-scholar-text-weak">{icon}{label}</div>
+      <div className="mt-1 text-sm font-bold text-scholar-text-primary">{value}</div>
+    </div>
+  )
 }
