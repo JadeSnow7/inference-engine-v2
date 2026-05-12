@@ -7,7 +7,7 @@ const mobileNavItems = [
   { label: '工作台', path: '/workbench', icon: Sparkles },
   { label: '文献', path: '/library', icon: BookMarked },
   { label: '写作', path: '/writing', icon: PenLine },
-  { label: '图谱', path: '/discovery', icon: Network },
+  { label: '图谱', path: '/graph', icon: Network },
 ]
 
 export function GlobalMobileNav() {

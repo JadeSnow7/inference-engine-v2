@@ -27,7 +27,8 @@ export default function App() {
           <Route path="courses" element={<Courses />} />
           <Route path="workbench" element={<WorkspacePage embedded />} />
           <Route path="library" element={<Library />} />
-          <Route path="discovery" element={<Discovery />} />
+          <Route path="graph" element={<Discovery />} />
+          <Route path="discovery" element={<Navigate to="/graph" replace />} />
           <Route path="writing" element={<Writing />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

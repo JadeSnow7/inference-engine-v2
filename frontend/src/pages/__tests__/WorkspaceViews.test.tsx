@@ -86,7 +86,7 @@ describe('workspace views', () => {
   })
 
   it('keeps discovery inside the workspace page model', () => {
-    window.history.pushState({}, '', '/discovery')
+    window.history.pushState({}, '', '/graph')
 
     render(<App />)
 

@@ -109,7 +109,7 @@ describe('WorkspaceShell routes', () => {
     expect(within(nav).getByRole('link', { name: /课程/ })).toHaveAttribute('href', '/courses')
     expect(within(nav).getByRole('link', { name: /学术工作台/ })).toHaveAttribute('href', '/workbench')
     expect(within(nav).getByRole('link', { name: /文献库/ })).toHaveAttribute('href', '/library')
-    expect(within(nav).getByRole('link', { name: /知识图谱/ })).toHaveAttribute('href', '/discovery')
+    expect(within(nav).getByRole('link', { name: /知识图谱/ })).toHaveAttribute('href', '/graph')
 
     expect(within(shell).getByRole('heading', { name: '基于深度学习的图像分类方法综述' })).toBeInTheDocument()
     expect(screen.getByTestId('knowledge-flow')).toBeInTheDocument()

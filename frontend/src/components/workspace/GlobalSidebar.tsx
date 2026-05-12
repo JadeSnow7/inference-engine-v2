@@ -6,7 +6,7 @@ const navItems = [
   { label: '课程', path: '/courses', icon: BookOpen },
   { label: '学术工作台', path: '/workbench', icon: Sparkles },
   { label: '文献库', path: '/library', icon: BookMarked },
-  { label: '知识图谱', path: '/discovery', icon: Network },
+  { label: '知识图谱', path: '/graph', icon: Network },
   { label: 'AI 写作', path: '/writing', icon: PenLine },
 ]
 
