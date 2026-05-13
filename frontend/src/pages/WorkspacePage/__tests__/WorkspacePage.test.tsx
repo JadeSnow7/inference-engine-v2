@@ -349,6 +349,30 @@ describe('WorkspacePage', () => {
     expect(screen.getByText('已根据真实 AI 输出生成一条可审阅的文档修改建议。')).toBeInTheDocument()
   })
 
+  it('keeps web search mode disabled until a real provider is configured', async () => {
+    connectSSE.mockImplementation((message, handlers) => {
+      expect(message).not.toContain('联网搜索意图')
+      handlers.onToken('普通深度思考输出。')
+      handlers.onDone()
+      return { abort: vi.fn() }
+    })
+
+    render(<WorkspacePage />)
+
+    const webSearchButton = screen.getByRole('button', { name: '联网搜索' })
+    expect(webSearchButton).toBeDisabled()
+    expect(webSearchButton).toHaveAttribute('title', '后端未配置实时公网搜索，暂不可用')
+
+    fireEvent.click(webSearchButton)
+    fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
+      target: { value: '请检查是否需要外部事实' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(connectSSE).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText('普通深度思考输出。').length).toBeGreaterThan(0)
+  })
+
   it('does not start a second SSE request while generation is running', async () => {
     connectSSE.mockImplementation((_message, handlers) => {
       handlers.onStage('文献检索中')

@@ -7,9 +7,9 @@ import { useWorkspaceStore, type DocumentToolMode } from '../../store/workspace'
 
 type QuickModeId = 'deep' | 'web' | 'citation' | 'graph' | 'norms'
 
-const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon }> = [
+const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon; disabledReason?: string }> = [
   { id: 'deep', label: '深度思考', icon: WandSparkles },
-  { id: 'web', label: '联网搜索', icon: Globe2 },
+  { id: 'web', label: '联网搜索', icon: Globe2, disabledReason: '后端未配置实时公网搜索，暂不可用' },
   { id: 'citation', label: '引用增强', icon: Library },
   { id: 'graph', label: '图谱检索', icon: Network },
   { id: 'norms', label: '学术规范', icon: BookCheck },
@@ -180,20 +180,24 @@ export function AIChatInput() {
           {quickModes.map(mode => {
             const Icon = mode.icon
             const isCitationEnhance = mode.id === 'citation'
+            const isDisabled = !!mode.disabledReason || (isCitationEnhance && isGenerating)
             const active = selectedMode === mode.id
+            const buttonClassName = mode.disabledReason
+              ? 'cursor-not-allowed border-scholar-border bg-slate-50 text-scholar-text-weak'
+              : active
+                ? 'border-scholar-primary/40 bg-blue-50 text-scholar-primary'
+                : 'border-scholar-border text-scholar-text-secondary hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary'
+
             return (
               <button
                 key={mode.label}
                 type="button"
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                  active
-                    ? 'border-scholar-primary/40 bg-blue-50 text-scholar-primary'
-                    : 'border-scholar-border text-scholar-text-secondary hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary'
-                }`}
+                title={mode.disabledReason}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${buttonClassName}`}
                 onClick={isCitationEnhance
                   ? () => runAIRequest('引用增强：请为当前段落补充学术依据和引用支撑。', 'citation_enhance', selectedBlockId ?? undefined)
                   : () => setSelectedMode(mode.id)}
-                disabled={isCitationEnhance && isGenerating}
+                disabled={isDisabled}
                 aria-pressed={active}
               >
                 <Icon size={14} />
