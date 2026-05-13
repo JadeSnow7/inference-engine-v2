@@ -7,16 +7,16 @@ import { RightKnowledgePanel } from './RightKnowledgePanel'
 import { TopBar } from './TopBar'
 
 export function WorkspaceLayout({ embedded = false }: { embedded?: boolean }) {
-  const hydrateLocalDraft = useWorkspaceStore(state => state.hydrateLocalDraft)
+  const bootstrapWorkspaceDocument = useWorkspaceStore(state => state.bootstrapWorkspaceDocument)
   const setActiveSessionId = useWorkspaceStore(state => state.setActiveSessionId)
   const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
   const workbenchContext = useLayoutStore(state => state.workbenchContext)
   const hydrateWorkbenchContext = useLayoutStore(state => state.hydrateWorkbenchContext)
 
   useEffect(() => {
-    hydrateLocalDraft()
+    void bootstrapWorkspaceDocument()
     hydrateWorkbenchContext()
-  }, [hydrateLocalDraft, hydrateWorkbenchContext])
+  }, [bootstrapWorkspaceDocument, hydrateWorkbenchContext])
 
   useEffect(() => {
     const handleRestore = (event: Event) => {

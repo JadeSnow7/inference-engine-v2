@@ -65,6 +65,14 @@ async def create_document(
     return ok(document, status_code=201)
 
 
+@router.get("/documents")
+async def list_documents(
+    request: Request,
+    user_id: str = Depends(get_current_user_id),
+):
+    return ok(await _store(request).list_documents(user_id))
+
+
 @router.get("/documents/{document_id}")
 async def get_document(
     document_id: str,

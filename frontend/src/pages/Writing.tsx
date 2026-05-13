@@ -25,7 +25,7 @@ export default function Writing() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
+    <div data-testid="writing-page" className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6 overflow-y-auto p-6 md:p-8">
       <header className="flex flex-col gap-4 border-b border-scholar-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-scholar-primary">

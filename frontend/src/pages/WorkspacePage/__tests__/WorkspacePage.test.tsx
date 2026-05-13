@@ -4,6 +4,13 @@ import type { MouseEvent, ReactNode } from 'react'
 
 const connectSSE = vi.hoisted(() => vi.fn())
 const analyzeWriting = vi.hoisted(() => vi.fn())
+const listDocuments = vi.hoisted(() => vi.fn())
+const createDocument = vi.hoisted(() => vi.fn())
+const fetchDocument = vi.hoisted(() => vi.fn())
+const updateDocument = vi.hoisted(() => vi.fn())
+const fetchDocumentVersions = vi.hoisted(() => vi.fn())
+const createDocumentVersion = vi.hoisted(() => vi.fn())
+const restoreDocumentVersion = vi.hoisted(() => vi.fn())
 
 vi.mock('../../../api/sse', () => ({
   connectSSE: (...args: unknown[]) => connectSSE(...args),
@@ -11,6 +18,16 @@ vi.mock('../../../api/sse', () => ({
 
 vi.mock('../../../api/writing', () => ({
   analyzeWriting: (...args: unknown[]) => analyzeWriting(...args),
+}))
+
+vi.mock('../../../api/documents', () => ({
+  listDocuments: (...args: unknown[]) => listDocuments(...args),
+  createDocument: (...args: unknown[]) => createDocument(...args),
+  fetchDocument: (...args: unknown[]) => fetchDocument(...args),
+  updateDocument: (...args: unknown[]) => updateDocument(...args),
+  fetchDocumentVersions: (...args: unknown[]) => fetchDocumentVersions(...args),
+  createDocumentVersion: (...args: unknown[]) => createDocumentVersion(...args),
+  restoreDocumentVersion: (...args: unknown[]) => restoreDocumentVersion(...args),
 }))
 
 vi.mock('@xyflow/react', () => ({
@@ -96,6 +113,14 @@ describe('WorkspacePage', () => {
     installMemoryStorage()
     connectSSE.mockReset()
     analyzeWriting.mockReset()
+    listDocuments.mockReset()
+    createDocument.mockReset()
+    fetchDocument.mockReset()
+    updateDocument.mockReset()
+    fetchDocumentVersions.mockReset()
+    createDocumentVersion.mockReset()
+    restoreDocumentVersion.mockReset()
+    listDocuments.mockImplementation(() => new Promise(() => {}))
     analyzeWriting.mockResolvedValue({
       nodes: [],
       expanded_context: [],

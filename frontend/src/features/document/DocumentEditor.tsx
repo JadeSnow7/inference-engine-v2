@@ -1,5 +1,6 @@
+import { useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
-import { useWorkspaceStore, type DocumentToolMode } from '../../store/workspace'
+import { useWorkspaceStore, type DocumentToolMode, type InlineMarkdownSelection } from '../../store/workspace'
 import type { CitationRiskLevel, DocumentBlock } from '../../types/workspace'
 import { CitationHighlight } from './CitationHighlight'
 import { DocumentOutlineCard } from './DocumentOutlineCard'
@@ -22,14 +23,29 @@ export function DocumentEditor() {
   const ragPapers = useWorkspaceStore(state => state.ragPapers)
   const aiRunStatus = useWorkspaceStore(state => state.aiRunStatus)
   const citationEnhancementRequest = useWorkspaceStore(state => state.citationEnhancementRequest)
+  const saveStatus = useWorkspaceStore(state => state.saveStatus)
   const setSelectedBlock = useWorkspaceStore(state => state.setSelectedBlock)
   const selectCitationReference = useWorkspaceStore(state => state.selectCitationReference)
   const requestCitationEnhancement = useWorkspaceStore(state => state.requestCitationEnhancement)
   const requestDocumentTool = useWorkspaceStore(state => state.requestDocumentTool)
+  const saveCurrentDocument = useWorkspaceStore(state => state.saveCurrentDocument)
+  const updateDocumentBlock = useWorkspaceStore(state => state.updateDocumentBlock)
+  const insertDocumentBlock = useWorkspaceStore(state => state.insertDocumentBlock)
+  const deleteDocumentBlock = useWorkspaceStore(state => state.deleteDocumentBlock)
+  const toggleBlockType = useWorkspaceStore(state => state.toggleBlockType)
+  const applyInlineMarkdown = useWorkspaceStore(state => state.applyInlineMarkdown)
+  const setRightPanelMode = useWorkspaceStore(state => state.setRightPanelMode)
+  const [activeSelection, setActiveSelection] = useState<{ blockId: string } & InlineMarkdownSelection | null>(null)
   const selectedReferenceIds = selectedReferenceId
     ? [selectedReferenceId]
     : graphNodes.find(node => node.id === selectedGraphNodeId)?.referenceIds ?? []
   const isGenerating = ['retrieving', 'reasoning', 'generating'].includes(aiRunStatus)
+  const activeBlock = documentBlocks.find(block => block.id === selectedBlockId) ?? documentBlocks[0]
+  const currentBlockType = activeBlock?.type ?? 'paragraph'
+  const firstHeadingText = documentBlocks.find(block => block.type === 'heading')?.content.trim()
+  const documentTitle = firstHeadingText && !/^\d+[.、]/.test(firstHeadingText)
+    ? firstHeadingText
+    : '基于深度学习的图像分类方法综述'
 
   const citationCount = documentBlocks.reduce((count, block) => count + (block.citations?.length ?? 0), 0)
   const paragraphBlocks = documentBlocks.filter(block => block.type === 'paragraph')
@@ -42,13 +58,23 @@ export function DocumentEditor() {
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm">
-      <DocumentToolbar />
+      <DocumentToolbar
+        currentBlockType={currentBlockType}
+        saveStatus={saveStatus}
+        onSave={() => void saveCurrentDocument()}
+        onFormat={(command) => {
+          const selection = activeSelection?.blockId === selectedBlockId ? activeSelection : undefined
+          applyInlineMarkdown(command, selection)
+        }}
+        onToggleBlockType={() => activeBlock && toggleBlockType(activeBlock.id)}
+        onOpenReferences={() => setRightPanelMode('list')}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-white to-[#fbfcff] p-6">
         <div className="mx-auto flex max-w-5xl gap-5">
-          <div className="min-w-0 flex-1 rounded-2xl bg-white px-8 py-7 shadow-[0_18px_70px_rgba(36,50,100,0.08)]">
+          <div className="min-w-0 flex-1 rounded-lg bg-white px-8 py-7 shadow-[0_18px_70px_rgba(36,50,100,0.08)]">
             <div className="mb-7 border-b border-scholar-border pb-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-scholar-primary">Academic Draft</p>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950">基于深度学习的图像分类方法综述</h1>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950">{documentTitle}</h1>
               <div className="mt-4 flex flex-wrap gap-3 text-xs text-scholar-text-weak">
                 <span>字数：{wordCount}</span>
                 <span>引用：{citationCount}</span>
@@ -76,6 +102,10 @@ export function DocumentEditor() {
                   isCitationEnhanceDisabled={isGenerating}
                   areDocumentToolsDisabled={isGenerating}
                   onSelect={() => setSelectedBlock(block.id)}
+                  onUpdate={(patch) => updateDocumentBlock(block.id, patch)}
+                  onInsertAfter={(nextBlock) => insertDocumentBlock(block.id, nextBlock)}
+                  onDelete={() => deleteDocumentBlock(block.id)}
+                  onSelectionChange={(selection) => setActiveSelection({ blockId: block.id, ...selection })}
                   onDocumentTool={(tool) => requestDocumentTool(tool, block.id)}
                   onCitationEnhance={() => requestCitationEnhancement(block.id)}
                   onCitationClick={(referenceId) => selectCitationReference(referenceId, block.id)}
@@ -229,6 +259,10 @@ function DocumentBlockView({
   onCitationEnhance,
   onCitationClick,
   selectedReferenceIds,
+  onUpdate,
+  onInsertAfter,
+  onDelete,
+  onSelectionChange,
 }: {
   block: DocumentBlock
   active: boolean
@@ -240,12 +274,75 @@ function DocumentBlockView({
   onCitationEnhance: () => void
   onCitationClick: (referenceId: string) => void
   selectedReferenceIds: string[]
+  onUpdate: (patch: Partial<DocumentBlock>) => void
+  onInsertAfter: (block: DocumentBlock) => void
+  onDelete: () => void
+  onSelectionChange: (selection: InlineMarkdownSelection) => void
 }) {
+  const updateSelection = (target: HTMLTextAreaElement | HTMLInputElement) => {
+    onSelectionChange({
+      start: target.selectionStart ?? 0,
+      end: target.selectionEnd ?? target.value.length,
+    })
+  }
+
+  const handleParagraphKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      const textarea = event.currentTarget
+      const start = textarea.selectionStart ?? block.content.length
+      const end = textarea.selectionEnd ?? start
+      const before = block.content.slice(0, start)
+      const after = block.content.slice(end)
+      onUpdate({ content: before })
+      onInsertAfter({
+        id: `paragraph-${Date.now()}`,
+        type: 'paragraph',
+        content: after,
+      })
+      return
+    }
+
+    if (event.key === 'Backspace' && block.content.length === 0) {
+      event.preventDefault()
+      onDelete()
+    }
+  }
+
+  const handleHeadingKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+
+    event.preventDefault()
+    onInsertAfter({
+      id: `paragraph-${Date.now()}`,
+      type: 'paragraph',
+      content: '',
+    })
+  }
+
   if (block.type === 'heading') {
     return (
-      <h2 id={block.id} className="pt-2 text-xl font-extrabold text-scholar-primary">
-        {block.content}
-      </h2>
+      <div
+        id={block.id}
+        className={`rounded-lg border px-3 py-2 transition ${
+          active ? 'border-blue-200 bg-blue-50/40' : 'border-transparent hover:border-scholar-border hover:bg-scholar-bg-canvas/70'
+        }`}
+        onMouseEnter={onSelect}
+      >
+        <input
+          aria-label={`编辑标题 ${block.id}`}
+          className="w-full bg-transparent text-xl font-extrabold text-scholar-primary outline-none"
+          value={block.content}
+          onFocus={(event) => {
+            onSelect()
+            updateSelection(event.currentTarget)
+          }}
+          onClick={(event) => updateSelection(event.currentTarget)}
+          onSelect={(event) => updateSelection(event.currentTarget)}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => onUpdate({ content: event.target.value })}
+          onKeyDown={handleHeadingKeyDown}
+        />
+      </div>
     )
   }
 
@@ -264,9 +361,21 @@ function DocumentBlockView({
         </div>
       )}
       {block.title && <h3 className="mb-2 text-base font-bold text-scholar-primary">{block.title}</h3>}
-      <p className="text-[15px] leading-8 text-slate-800">
-        {renderHighlightedContent(block, selectedReferenceIds, onCitationClick)}
-      </p>
+      <textarea
+        aria-label={`编辑段落 ${block.id}`}
+        className="min-h-28 w-full resize-y bg-transparent text-[15px] leading-8 text-slate-800 outline-none"
+        value={block.content}
+        rows={Math.max(4, block.content.split('\n').length + 1)}
+        onFocus={(event) => {
+          onSelect()
+          updateSelection(event.currentTarget)
+        }}
+        onClick={(event) => updateSelection(event.currentTarget)}
+        onSelect={(event) => updateSelection(event.currentTarget)}
+        onKeyUp={(event) => updateSelection(event.currentTarget)}
+        onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onUpdate({ content: event.target.value })}
+        onKeyDown={handleParagraphKeyDown}
+      />
       {block.citations && block.citations.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {block.citations.map(citation => (
@@ -307,36 +416,4 @@ function DocumentBlockView({
       </div>
     </section>
   )
-}
-
-function renderHighlightedContent(
-  block: DocumentBlock,
-  selectedReferenceIds: string[],
-  onCitationClick: (referenceId: string) => void,
-) {
-  const highlights = [...(block.keywords ?? []), ...(block.citations?.map(citation => citation.label) ?? [])]
-  if (highlights.length === 0) return block.content
-
-  const citationByLabel = new Map((block.citations ?? []).map(citation => [citation.label, citation]))
-  const escaped = highlights.map(item => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const matcher = new RegExp(`(${escaped.join('|')})`, 'g')
-
-  return block.content.split(matcher).map((part, index) => {
-    if (!highlights.includes(part)) return <span key={`${part}-${index}`}>{part}</span>
-    const citation = citationByLabel.get(part)
-
-    if (citation) {
-      return (
-        <CitationHighlight
-          key={`${part}-${index}`}
-          active={selectedReferenceIds.includes(citation.referenceId)}
-          onClick={() => onCitationClick(citation.referenceId)}
-        >
-          {part}
-        </CitationHighlight>
-      )
-    }
-
-    return <CitationHighlight key={`${part}-${index}`}>{part}</CitationHighlight>
-  })
 }

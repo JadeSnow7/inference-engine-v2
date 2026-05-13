@@ -1,6 +1,7 @@
+import { useMemo, useState } from 'react'
 import { List, Network } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspace'
-import { GraphToolbar } from '../graph/GraphToolbar'
+import { GraphToolbar, type GraphToolbarFilter } from '../graph/GraphToolbar'
 import { KnowledgeGraph } from '../graph/KnowledgeGraph'
 import { NodeDetailCard } from '../graph/NodeDetailCard'
 
@@ -10,8 +11,13 @@ export function RightKnowledgePanel() {
   const selectedGraphNodeId = useWorkspaceStore(state => state.selectedGraphNodeId)
   const setSelectedGraphNode = useWorkspaceStore(state => state.setSelectedGraphNode)
   const graphNodes = useWorkspaceStore(state => state.graphNodes)
-  const selectedNode = graphNodes.find(node => node.id === selectedGraphNodeId) ?? graphNodes[0]
-  const hasGraphNodes = graphNodes.length > 0
+  const [graphFilter, setGraphFilter] = useState<GraphToolbarFilter>(null)
+  const filteredGraphNodes = useMemo(() => (
+    graphFilter ? graphNodes.filter(node => node.type === graphFilter) : graphNodes
+  ), [graphFilter, graphNodes])
+  const filteredGraphNodeIds = useMemo(() => new Set(filteredGraphNodes.map(node => node.id)), [filteredGraphNodes])
+  const selectedNode = filteredGraphNodes.find(node => node.id === selectedGraphNodeId) ?? filteredGraphNodes[0]
+  const hasGraphNodes = filteredGraphNodes.length > 0
 
   return (
     <aside className="hidden w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-scholar-border bg-white shadow-sm 2xl:flex">
@@ -40,16 +46,16 @@ export function RightKnowledgePanel() {
       </div>
 
       <div className="min-h-0 flex-[1.05] border-b border-scholar-border">
-        <GraphToolbar />
+        <GraphToolbar activeFilter={graphFilter} onFilterChange={setGraphFilter} />
         {!hasGraphNodes ? (
           <div className="flex h-[340px] items-center justify-center bg-scholar-bg-canvas px-6 text-center text-sm text-scholar-text-secondary">
             暂无图谱节点
           </div>
         ) : rightPanelMode === 'graph' ? (
-          <KnowledgeGraph />
+          <KnowledgeGraph visibleNodeIds={graphFilter ? filteredGraphNodeIds : undefined} />
         ) : (
           <div className="grid max-h-[360px] gap-2 overflow-y-auto p-4">
-            {graphNodes.map(node => (
+            {filteredGraphNodes.map(node => (
               <button
                 key={node.id}
                 className={`rounded-xl border px-3 py-2 text-left transition ${

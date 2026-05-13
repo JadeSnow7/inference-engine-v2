@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createJSONStorage } from 'zustand/middleware'
 import { GlobalTopBar } from '../GlobalTopBar'
 import { LeftSidebar } from '../../../features/workspace/LeftSidebar'
 import { useUserStore } from '../../../store/user'
@@ -26,8 +27,20 @@ function renderWithRouter(node: ReactNode) {
   render(<BrowserRouter>{node}</BrowserRouter>)
 }
 
+function installMemoryStorage() {
+  const values = new Map<string, string>()
+  const localStorage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value) },
+    removeItem: (key: string) => { values.delete(key) },
+  }
+  vi.stubGlobal('localStorage', localStorage)
+  useUserStore.persist.setOptions({ storage: createJSONStorage(() => localStorage) })
+}
+
 describe('notifications and settings controls', () => {
   beforeEach(() => {
+    installMemoryStorage()
     fetchNotifications.mockReset()
     markNotificationRead.mockReset()
     fetchSettings.mockReset()

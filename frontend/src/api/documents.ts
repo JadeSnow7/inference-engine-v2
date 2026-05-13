@@ -25,6 +25,10 @@ export function fetchDocument(documentId: string): Promise<PersistedDocument> {
   return apiFetch<PersistedDocument>(`/api/documents/${documentId}`)
 }
 
+export function listDocuments(): Promise<PersistedDocument[]> {
+  return apiFetch<PersistedDocument[]>('/api/documents')
+}
+
 export function createDocument(input: {
   title: string
   courseId?: string | null

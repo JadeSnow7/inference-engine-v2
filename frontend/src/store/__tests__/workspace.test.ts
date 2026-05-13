@@ -6,6 +6,8 @@ import type { DocumentSuggestion } from '../../types/workspace'
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
 const fetchDocument = vi.hoisted(() => vi.fn())
+const listDocuments = vi.hoisted(() => vi.fn())
+const createDocument = vi.hoisted(() => vi.fn())
 const updateDocument = vi.hoisted(() => vi.fn())
 const fetchDocumentVersions = vi.hoisted(() => vi.fn())
 const createDocumentVersion = vi.hoisted(() => vi.fn())
@@ -18,6 +20,8 @@ vi.mock('../../api/sessions', () => ({
 
 vi.mock('../../api/documents', () => ({
   fetchDocument: (...args: unknown[]) => fetchDocument(...args),
+  listDocuments: (...args: unknown[]) => listDocuments(...args),
+  createDocument: (...args: unknown[]) => createDocument(...args),
   updateDocument: (...args: unknown[]) => updateDocument(...args),
   fetchDocumentVersions: (...args: unknown[]) => fetchDocumentVersions(...args),
   createDocumentVersion: (...args: unknown[]) => createDocumentVersion(...args),
@@ -45,6 +49,8 @@ describe('useWorkspaceStore', () => {
     window.localStorage.removeItem(WORKBENCH_DRAFT_KEY)
     window.localStorage.removeItem(WORKBENCH_SNAPSHOT_KEY)
     fetchDocument.mockReset()
+    listDocuments.mockReset()
+    createDocument.mockReset()
     updateDocument.mockReset()
     fetchDocumentVersions.mockReset()
     createDocumentVersion.mockReset()
@@ -582,6 +588,109 @@ describe('useWorkspaceStore', () => {
     }))
     expect(state.saveStatus).toBe('saved')
     expect(state.documentErrorMessage).toBe('')
+  })
+
+  it('bootstraps the most recently updated backend document into the workspace', async () => {
+    listDocuments.mockResolvedValue([
+      {
+        id: 'doc-new',
+        title: 'Newest document',
+        blocks: [{ id: 'heading-new', type: 'heading', headingLevel: 1, content: 'Newest document' }],
+        metadata: {},
+        createdAt: '2026-05-13T00:00:00.000Z',
+        updatedAt: '2026-05-13T00:03:00.000Z',
+      },
+    ])
+    fetchDocument.mockResolvedValue({
+      id: 'doc-new',
+      title: 'Newest document',
+      blocks: [
+        { id: 'heading-new', type: 'heading', headingLevel: 1, content: 'Newest document' },
+        { id: 'para-new', type: 'paragraph', content: 'Loaded recent draft.' },
+      ],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:03:00.000Z',
+    })
+    fetchDocumentVersions.mockResolvedValue([])
+
+    await useWorkspaceStore.getState().bootstrapWorkspaceDocument()
+
+    expect(listDocuments).toHaveBeenCalledTimes(1)
+    expect(fetchDocument).toHaveBeenCalledWith('doc-new')
+    expect(useWorkspaceStore.getState().activeDocumentId).toBe('doc-new')
+    expect(useWorkspaceStore.getState().documentBlocks[1].content).toBe('Loaded recent draft.')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('creates a blank backend document when bootstrap finds no documents', async () => {
+    listDocuments.mockResolvedValue([])
+    createDocument.mockResolvedValue({
+      id: 'doc-blank',
+      title: '未命名研究草稿',
+      blocks: [
+        { id: 'blank-title', type: 'heading', headingLevel: 1, content: '未命名研究草稿' },
+        { id: 'blank-body', type: 'paragraph', content: '' },
+      ],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:00:00.000Z',
+    })
+
+    await useWorkspaceStore.getState().bootstrapWorkspaceDocument()
+
+    expect(createDocument).toHaveBeenCalledWith({
+      title: '未命名研究草稿',
+      blocks: expect.arrayContaining([
+        expect.objectContaining({ type: 'heading', content: '未命名研究草稿' }),
+        expect.objectContaining({ type: 'paragraph', content: '' }),
+      ]),
+    })
+    expect(useWorkspaceStore.getState().activeDocumentId).toBe('doc-blank')
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('未命名研究草稿')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('updates inserts deletes and toggles editable document blocks', () => {
+    useWorkspaceStore.setState({
+      selectedBlockId: 'para-1',
+      documentBlocks: [
+        { id: 'heading-1', type: 'heading', headingLevel: 1, content: 'Title' },
+        { id: 'para-1', type: 'paragraph', content: 'Body', citations: [{ id: 'c1', label: '[1]', referenceId: 'r1' }] },
+      ],
+      saveStatus: 'saved',
+    })
+
+    useWorkspaceStore.getState().updateDocumentBlock('para-1', { content: 'Edited body' })
+    useWorkspaceStore.getState().insertDocumentBlock('para-1', { id: 'para-2', type: 'paragraph', content: 'Second' })
+    useWorkspaceStore.getState().toggleBlockType('para-2')
+    useWorkspaceStore.getState().deleteDocumentBlock('para-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks).toEqual([
+      expect.objectContaining({ id: 'heading-1', type: 'heading', content: 'Title' }),
+      expect.objectContaining({ id: 'para-2', type: 'heading', headingLevel: 2, content: 'Second' }),
+    ])
+    expect(state.documentBlocks.some(block => block.id === 'para-1')).toBe(false)
+    expect(state.saveStatus).toBe('modified')
+  })
+
+  it('applies inline markdown to the selected editable block', () => {
+    useWorkspaceStore.setState({
+      selectedBlockId: 'para-1',
+      documentBlocks: [{ id: 'para-1', type: 'paragraph', content: 'Alpha\nBeta' }],
+      saveStatus: 'saved',
+    })
+
+    useWorkspaceStore.getState().applyInlineMarkdown('bold', { start: 0, end: 5 })
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('**Alpha**\nBeta')
+
+    useWorkspaceStore.getState().applyInlineMarkdown('list')
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('- **Alpha**\n- Beta')
+
+    useWorkspaceStore.getState().applyInlineMarkdown('link', { start: 2, end: 11 })
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toContain('[**Alpha**](https://)')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
   })
 
   it('saves edited blocks to the active backend document', async () => {
