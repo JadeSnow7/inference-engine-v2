@@ -1,98 +1,81 @@
-# ScholarScript Frontend Post-Refactor Audit Report
+# ScholarScript Frontend Integration Audit
 
 ## 1. Audit Scope
-- Commit / branch: `codex/scholar-frontend-refactor` at `f671ba2` plus uncommitted audit fixes.
-- Frontend path: `frontend`
-- Backend path: `backend`
-- Date: 2026-05-12
-- Auditor: Codex implementation pass plus independent subagent review notes.
-- Commands executed:
-  - `npm ci`
-  - `npm run lint`
-  - `npm run test -- --run`
-  - `npm run build`
-  - `python3 -m unittest tests.test_writing_api`
-  - `python3 -m unittest discover -s tests`
-  - `node run-audit.mjs`
-  - `rg "alert\\(|TODO|FIXME|no-op|下一阶段接入|setTimeout|setInterval|workspaceMock|onClick=\\{\\(\\) => \\{\\}\\}|innerHTML" frontend/src`
+
+- Branch: `codex/scholar-next-integration`
+- Date: 2026-05-13
+- Production frontend: `frontend/`
+- Backend: `backend/`
+- Archived prototype: `academic-workbench-fe/`
+
+This report supersedes the 2026-05-12 post-refactor audit. It reflects the API integration work completed for document persistence, product pages, search, notifications/settings, document AI tools, web-search availability, and ModelScope runtime alignment.
 
 ## 2. Summary
-- Overall result: PASS WITH ISSUES
-- Production readiness: NO
-- Highest risk area: Backend full-test environment and remaining production seeded demo data in `workspaceMock`.
 
-## 3. Build And Test Results
-- npm ci: PASS WITH WARNINGS. Peer dependency warnings from `@napi-rs/wasm-runtime` and `@emnapi/*`.
-- npm run lint: PASS.
-- npm run test -- --run: PASS. 17 files, 89 tests.
-- npm run build: PASS WITH WARNINGS. Vite reports a minified JS chunk above 500 kB.
-- Targeted backend writing API: PASS. `python3 -m unittest tests.test_writing_api` ran 2 tests.
-- Backend discover: FAIL. 44 tests ran, 3 existing retriever tests failed while importing `sentence_transformers/transformers` because `GenerationMixin` could not be imported.
-- dist: PASS. `frontend/dist/index.html`, CSS, and JS bundle generated.
+- Overall result: PASS WITH KNOWN RESIDUAL RISKS
+- Production frontend entry: YES, `frontend/`
+- Archived prototype status: `academic-workbench-fe/` remains out of production scope.
+- Highest remaining product risk: the default workspace still seeds initial document/graph/reference state from `workspaceMock` until a backend bootstrap/default-document endpoint replaces it.
 
-## 4. P0 Acceptance Results
-### Course to Workbench Context
-Result: PASS.
-Evidence: Existing frontend tests cover workspace context hydration and workbench route behavior; screenshots confirm `/workbench` renders inside the unified shell.
-Issues: None observed in this pass.
+## 3. Connected Surfaces
 
-### Session Restore
-Result: PASS.
-Evidence: `frontend/src/store/__tests__/workspace.test.ts` verifies messages, papers, gaps, outline, document blocks, suggestion, and active session restore from backend session APIs.
-Issues: History UI is now available from the unified right panel on `/workbench`.
+| Surface | Result | Evidence |
+| --- | --- | --- |
+| Workspace documents and versions | PASS | `/api/documents` backend and `frontend/src/api/documents.ts`; workspace store saves, versions, restore, and local fallback. |
+| Courses | PASS | `/api/courses` and `Courses.tsx` API loading/empty/error states. |
+| Dashboard | PASS | `/api/dashboard` and `Dashboard.tsx` summary loading/empty/error states. |
+| Library | PASS | `/api/library` and evidence filters. |
+| Discovery graph | PASS | `/api/graph` and ReactFlow local movement state. |
+| Search | PASS | `/api/search` plus global/workspace/conversation search controls. |
+| Notifications/settings | PASS | `/api/notifications`, `/api/settings`, popover/dialog UI. |
+| Document AI tools | PASS | rewrite, expand, logic check, and citation enhancement route through `/api/chat` SSE and create reviewable suggestions. |
+| Web search quick mode | PASS AS DISABLED | Disabled with explicit unavailable title until a real backend provider exists. |
+| ModelScope local embedding | PASS | local GraphRAG only loads existing local paths from `MODELSCOPE_EMBED_MODEL_PATH`/`EMBED_MODEL`; no startup remote download path. |
 
-### References SSE
-Result: PASS.
-Evidence: SSE references are mapped into `ReferenceItem` including `excerpt` and rendered through `ReferenceList` / `CitationCard`; dynamic paper/gap tests pass.
-Issues: None observed in this pass.
+## 4. Current Verification Evidence
 
-### /v1/writing/analyze
-Result: PASS.
-Evidence: Added `backend/api/writing.py` and `backend/tests/test_writing_api.py`; targeted backend test passes. Frontend writing analysis hook no longer rethrows after setting UI error state.
-Issues: Full backend suite remains blocked by unrelated dependency import failure.
+Recent targeted verification from this branch:
 
-## 5. Design System Audit
-Result: PASS WITH ISSUES.
-Remaining inconsistencies:
-- Workspace editor still has a specialized local toolbar and graph surface, but it now sits inside the unified shell and uses shared shell navigation.
-- Extracted `ReferenceList`, `CitationCard`, and `SessionHistoryCard` to reduce panel-local rendering logic.
+- `WorkspacePage.test.tsx`: 28 tests passed after web-search clarification.
+- Workspace shell related tests: 31 tests passed across `WorkspacePage.test.tsx` and `WorkspaceShell.test.tsx`.
+- TypeScript: `tsc -b --pretty false` exited 0 for Task 9 and Task 10 changes.
+- Backend ModelScope/config smoke: `backend.tests.test_config`, `backend.tests.test_retriever`, `backend.tests.test_main_norm_retriever`: 9 tests passed.
+- Python compile: `backend/config.py`, `backend/main.py`, `backend/rag/graph.py`, `backend/rag/retriever.py`, and `scripts/download_modelscope_embedding.py` compiled successfully.
 
-## 6. Fake Feature Audit
-Result: PASS WITH ISSUES.
-Remaining fake/no-op controls:
-- Global and workspace search are disabled with honest "暂未接入" labels.
-- Notification/settings buttons in the global shell are disabled.
-- Document editor rewrite/expand/logic-check controls are disabled with honest labels; citation enhancement remains active.
-- Remaining `workspaceMock` usage is limited to seeded demo document, graph, versions, and references plus tests. Initial mock AI suggestion was removed.
+Full frontend and Docker verification remain part of the final push gate.
 
-## 7. Responsive Audit
-- Desktop: PASS. `audit-artifacts/screenshots/desktop-*.png`, including `desktop-workbench.png`, show real content and unified shell.
-- Tablet: PASS. `tablet-library.png` shows real content with compact navigation.
-- Mobile: PASS WITH ISSUES. `mobile-dashboard.png` renders real content and bottom navigation; deeper manual inspection is still recommended for long workbench sessions.
-- Screenshot count: 21 PNG files generated by `node run-audit.mjs`.
+## 5. Fake Feature Audit
 
-## 8. Code Quality And Cleanup
-- Remaining stale files: `academic-workbench-fe` is not used as the production frontend entry.
-- Remaining mock data: `frontend/src/mocks/workspaceMock.ts` still seeds demo document/graph/reference state.
-- Remaining duplicated components: No duplicate reference/history cards after extraction.
-- Audit artifacts: `audit-artifacts/` added to `.gitignore`; screenshots are generated locally by the audit script.
+Resolved since the prior audit:
 
-## 9. Security And Error Handling
-- Production stack exposure: Not observed in frontend render path.
-- innerHTML usage: Not found by `rg`.
-- Silent catch blocks: No empty catch blocks found by targeted scan.
-- API error states: Writing analysis and SSE failure paths now set visible error states instead of silently failing or creating mock suggestions.
-- Token storage: Auth token remains in `localStorage`; acceptable for demo, not production-hardening complete.
+- Global/workspace/conversation search is now connected.
+- Notifications and settings are connected.
+- Document rewrite, expand, and logic-check toolbar actions are connected.
+- Web search no longer presents itself as available; it is explicitly disabled.
 
-## 10. Issue List
-| ID | Severity | Area | Problem | File | Suggested Fix |
-|---|---|---|---|---|---|
-| A-001 | P1 | Backend tests | Full unittest discovery fails due local `sentence_transformers/transformers` import mismatch. | `backend/tests/test_retriever.py` | Pin compatible dependency versions or isolate retriever tests from optional transformer import. |
-| A-002 | P1 | Demo data | Production workspace still seeds document/graph/reference state from `workspaceMock`. | `frontend/src/store/workspace.ts` | Replace demo seed with backend/bootstrap API or explicitly gate demo seed behind demo mode. |
-| A-003 | P2 | Bundle size | Vite warns JS chunk is above 500 kB. | `frontend` build config/routes | Add route-level lazy imports or configure chunk splitting. |
-| A-004 | P2 | Auth hardening | Token remains stored in `localStorage`. | `frontend/src/store/user.ts` | For production, move to httpOnly cookie/session flow. |
+Remaining local/demo data:
 
-## 11. Final Recommendation
-- Ship: NO for production.
-- Needs fixes before demo: A-001 should be understood or isolated; screenshots and P0 frontend flows are demo-ready.
-- Needs fixes before production: A-001, A-002, A-003, A-004.
+- `workspaceMock` seeds the initial workspace document, graph, versions, and references before backend document load.
+- Course/library/dashboard/graph/search/notifications/settings production paths now call backend APIs rather than static page arrays.
+
+## 6. Model And Retrieval Boundary
+
+Local GraphRAG and DashScope norm retrieval are separate:
+
+- Local GraphRAG uses `MODELSCOPE_EMBED_MODEL_PATH` or an existing local `EMBED_MODEL` path.
+- Missing local model path disables local GraphRAG instead of triggering Hugging Face downloads.
+- Norm retrieval uses DashScope embeddings through `DashScopeEmbedder` when available and falls back to local Jaccard retrieval.
+
+## 7. Residual Risks
+
+| ID | Severity | Area | Problem | Suggested Fix |
+| --- | --- | --- | --- | --- |
+| A-001 | P1 | Initial workspace seed | `workspaceMock` remains the default initial document/graph/reference source. | Add backend bootstrap/default-document endpoint and remove production mock seeding. |
+| A-002 | P1 | Web search | No real provider exists yet. | Add backend provider, source attribution, timeout handling, product policy, and tests before enabling UI. |
+| A-003 | P2 | Auth hardening | Token remains stored in localStorage. | Move to httpOnly cookie/session flow for production hardening. |
+| A-004 | P2 | Bundle size | Route-level chunk splitting has not been optimized. | Add lazy routes or manual chunking. |
+| A-005 | P2 | Full-suite environment | Full backend discovery can still be sensitive to optional transformer/sentence-transformer versions. | Keep targeted tests as integration gate and pin optional dependencies before release. |
+
+## 8. Recommendation
+
+The application is materially beyond the prior “PASS WITH ISSUES / NO” state: the major disabled/demo production surfaces in the approved integration plan are now API-backed or honestly disabled. Continue to final verification and push gate before merging, with A-001 and A-002 as the main remaining product decisions.
