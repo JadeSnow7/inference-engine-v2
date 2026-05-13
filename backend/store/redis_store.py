@@ -156,6 +156,64 @@ class RedisProfileStore:
 
 
 # ---------------------------------------------------------------------------
+# RedisDocumentStore
+# ---------------------------------------------------------------------------
+
+class RedisDocumentStore:
+    """Per-user document and version persistence."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _document_key(user_id: str, document_id: str) -> str:
+        return f"document:{user_id}:{document_id}"
+
+    @staticmethod
+    def _versions_key(user_id: str, document_id: str) -> str:
+        return f"document_versions:{user_id}:{document_id}"
+
+    async def save_document(self, user_id: str, document: dict) -> dict:
+        await self.client.set(
+            self._document_key(user_id, document["id"]),
+            json.dumps(document, ensure_ascii=False),
+        )
+        return document
+
+    async def get_document(self, user_id: str, document_id: str) -> Optional[dict]:
+        raw = await self.client.get(self._document_key(user_id, document_id))
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except Exception:
+            return None
+
+    async def add_version(self, user_id: str, document_id: str, version: dict) -> dict:
+        await self.client.lpush(
+            self._versions_key(user_id, document_id),
+            json.dumps(version, ensure_ascii=False),
+        )
+        return version
+
+    async def list_versions(self, user_id: str, document_id: str) -> list[dict]:
+        rows = await self.client.lrange(self._versions_key(user_id, document_id), 0, -1)
+        versions = []
+        for row in rows:
+            try:
+                versions.append(json.loads(row))
+            except Exception:
+                continue
+        return versions
+
+    async def get_version(self, user_id: str, document_id: str, version_id: str) -> Optional[dict]:
+        for version in await self.list_versions(user_id, document_id):
+            if version.get("id") == version_id:
+                return version
+        return None
+
+
+# ---------------------------------------------------------------------------
 # UserStore
 # ---------------------------------------------------------------------------
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.chat import router as chat_router
+from api.documents import router as documents_router
 from api.health import router as health_router
 from api.responses import register_error_handlers
 from api.users import router as users_router
@@ -17,7 +18,7 @@ from rag.embed_adapter import DashScopeEmbedder
 from rag.graph import KnowledgeGraph, build_demo_graph
 from rag.norm_retriever import NormNodeRetriever
 from rag.retriever import DisabledRAGRetriever, GraphRAGRetriever
-from store.redis_store import RedisConversationStore, RedisProfileStore, UserStore
+from store.redis_store import RedisConversationStore, RedisDocumentStore, RedisProfileStore, UserStore
 
 
 def build_norm_retriever() -> NormNodeRetriever:
@@ -67,6 +68,7 @@ async def lifespan(app: FastAPI):
     app.state.rag = rag
     app.state.norm_retriever = build_norm_retriever()
     app.state.conv_manager = ConversationManager(RedisConversationStore(redis_client))
+    app.state.document_store = RedisDocumentStore(redis_client)
     app.state.profile_store = RedisProfileStore(redis_client)
     app.state.user_store = UserStore(redis_client)
     try:
@@ -85,6 +87,7 @@ app.add_middleware(
 )
 app.include_router(health_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")
 
