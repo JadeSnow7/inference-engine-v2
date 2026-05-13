@@ -1,18 +1,45 @@
-import { BookMarked, ExternalLink, FileText, Filter } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { BookMarked, ExternalLink, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { fetchEvidence, type EvidenceItem } from '../api/library'
 import { Badge, Button, Card, StateBlock } from '../components/ui'
-import { useWorkspaceStore } from '../store/workspace'
-
-const curatedEvidence = [
-  { id: 'norm-hust-2026', title: '华中科技大学本科论文写作规范', venue: 'HUST Norm Corpus', year: 2026, score: 0.94 },
-  { id: 'edu-llm-review-2025', title: 'Large Language Models in Education: A Comprehensive Review', venue: 'Computers & Education', year: 2025, score: 0.91 },
-  { id: 'ai-feedback-2024', title: 'AI Feedback Tools and Learning Outcomes', venue: 'Learning Analytics', year: 2024, score: 0.87 },
-]
 
 export default function Library() {
   const navigate = useNavigate()
-  const references = useWorkspaceStore(state => state.references)
-  const evidence = references.length > 0 ? references : curatedEvidence
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([])
+  const [query, setQuery] = useState('')
+  const [type, setType] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    fetchEvidence({
+      q: query.trim() || undefined,
+      type: type || undefined,
+    })
+      .then(response => {
+        if (!isCurrent) return
+        setEvidence(response.items)
+      })
+      .catch(error => {
+        if (!isCurrent) return
+        setEvidence([])
+        setErrorMessage(error instanceof Error ? error.message : '证据库暂时不可用')
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [query, type])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -28,19 +55,46 @@ export default function Library() {
               汇总工作台、写作分析和历史会话产生的文献与规范证据，用于引用核查和综述写作。
             </p>
           </div>
-          <Button variant="secondary" disabled title="筛选暂未接入">
-            <Filter size={16} />
-            筛选暂未接入
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-scholar-text-secondary">
+              证据搜索
+              <input
+                aria-label="证据搜索"
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="标题、来源或关键词"
+                className="h-10 w-full rounded-xl border border-scholar-border bg-white px-3 text-sm font-normal text-scholar-text-primary outline-none transition focus:border-scholar-primary focus:ring-4 focus:ring-blue-100 sm:w-56"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-scholar-text-secondary">
+              证据类型
+              <select
+                aria-label="证据类型"
+                value={type}
+                onChange={event => setType(event.target.value)}
+                className="h-10 rounded-xl border border-scholar-border bg-white px-3 text-sm font-normal text-scholar-text-primary outline-none transition focus:border-scholar-primary focus:ring-4 focus:ring-blue-100"
+              >
+                <option value="">全部</option>
+                <option value="paper">论文</option>
+                <option value="norm">规范</option>
+                <option value="dataset">数据集</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+          </div>
         </header>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <Card title="证据库">
             <div className="space-y-3">
-              {evidence.length === 0 && (
+              {isLoading && <StateBlock title="正在加载证据库..." icon={<FileText size={22} />} />}
+              {!isLoading && errorMessage && (
+                <StateBlock title="证据库加载失败" description={errorMessage} icon={<FileText size={22} />} />
+              )}
+              {!isLoading && !errorMessage && evidence.length === 0 && (
                 <StateBlock title="暂无证据" description="写作分析、SSE 检索或会话恢复后会在这里出现引用来源。" icon={<FileText size={22} />} />
               )}
-              {evidence.map(reference => (
+              {!isLoading && !errorMessage && evidence.map(reference => (
                 <article key={reference.id} className="rounded-2xl border border-scholar-border bg-white p-4 transition hover:border-scholar-primary/40 hover:bg-blue-50/40">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>

@@ -1,73 +1,58 @@
-# React + TypeScript + Vite
+# ScholarScript Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the only production frontend for the repository. The archived `academic-workbench-fe/` directory is not part of deployment or acceptance testing.
 
-Currently, two official plugins are available:
+## Start
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev server runs on `http://localhost:5173` and proxies:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `/api` to `http://localhost:8000`
+- `/v1` to `http://localhost:8000`
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Verify
+
+```bash
+npm run test -- --run
+npm run build
 ```
+
+`npm run build` runs `tsc -b` before Vite build. Type-only imports must use `import type` because `verbatimModuleSyntax` is enabled.
+
+## Architecture
+
+```text
+src/App.tsx                         routes and protected shell
+src/pages/Dashboard.tsx             dashboard summary from /api/dashboard
+src/pages/Courses.tsx               research spaces from /api/courses
+src/pages/Library.tsx               evidence from /api/library
+src/pages/Discovery.tsx             graph data from /api/graph
+src/pages/WorkspacePage/            academic writing workspace
+src/components/workspace/           top bar, sidebar, search, notifications, settings
+src/features/ai/AIChatInput.tsx     /api/chat SSE and document AI actions
+src/features/document/              editor, citation coverage, toolbar actions
+src/features/version/               version list and diff review
+src/store/workspace.ts              document, versions, suggestions, RAG artifacts
+src/store/layout.ts                 workbench context and shell state
+src/api/                            typed backend clients
+```
+
+## Connected Features
+
+- Workspace document persistence and versions use `/api/documents`.
+- Courses, dashboard, library, and discovery graph load from backend APIs.
+- Global/workspace/conversation search use `/api/search`.
+- Notifications and settings use `/api/notifications` and `/api/settings`.
+- Document toolbar actions for rewrite, expand, logic check, and citation enhancement reuse `/api/chat` SSE and produce reviewable suggestions.
+- Web search mode is intentionally disabled until a real backend provider exists.
+
+## UI Conventions
+
+- Use Zustand selectors, not whole-store destructuring.
+- Keep API error, empty, and loading states visible.
+- Use lucide icons for icon buttons where available.
+- Do not add new production data fallbacks from `workspaceMock`; it remains only as initial local seed/test fixture until a bootstrap API replaces it.

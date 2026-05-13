@@ -6,6 +6,8 @@ from rag.nodes import NodeType
 
 
 class GraphRAGRetriever:
+    provider_name = "local-graphrag"
+
     def __init__(self, kg, embedder):
         self.g = kg.get_graph()
         self.enc = embedder
@@ -153,6 +155,14 @@ class GraphRAGRetriever:
                 for nid in new_concepts[:5]
             ]
             current_query = " ".join(concept_labels)
+
+    def health(self) -> dict:
+        return {
+            "provider": self.provider_name,
+            "configured": True,
+            "nodes": self.g.number_of_nodes(),
+            "edges": self.g.number_of_edges(),
+        }
 
 
 class DisabledRAGRetriever:

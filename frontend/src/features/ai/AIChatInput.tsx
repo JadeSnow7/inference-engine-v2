@@ -3,13 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { connectSSE, type SSEController } from '../../api/sse'
 import { analyzeWriting } from '../../api/writing'
 import { useLayoutStore } from '../../store/layout'
-import { useWorkspaceStore } from '../../store/workspace'
+import { useWorkspaceStore, type DocumentToolMode } from '../../store/workspace'
 
 type QuickModeId = 'deep' | 'web' | 'citation' | 'graph' | 'norms'
 
-const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon }> = [
+const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon; disabledReason?: string }> = [
   { id: 'deep', label: '深度思考', icon: WandSparkles },
-  { id: 'web', label: '联网搜索', icon: Globe2 },
+  { id: 'web', label: '联网搜索', icon: Globe2, disabledReason: '后端未配置实时公网搜索，暂不可用' },
   { id: 'citation', label: '引用增强', icon: Library },
   { id: 'graph', label: '图谱检索', icon: Network },
   { id: 'norms', label: '学术规范', icon: BookCheck },
@@ -21,10 +21,13 @@ export function AIChatInput() {
   const workbenchContext = useLayoutStore(state => state.workbenchContext)
   const controllerRef = useRef<SSEController | null>(null)
   const handledCitationRequestIdRef = useRef<string | null>(null)
+  const handledDocumentToolRequestIdRef = useRef<string | null>(null)
   const aiRunStatus = useWorkspaceStore(state => state.aiRunStatus)
   const activeSessionId = useWorkspaceStore(state => state.activeSessionId)
   const citationEnhancementRequest = useWorkspaceStore(state => state.citationEnhancementRequest)
+  const documentToolRequest = useWorkspaceStore(state => state.documentToolRequest)
   const startAIRun = useWorkspaceStore(state => state.startAIRun)
+  const startDocumentToolRun = useWorkspaceStore(state => state.startDocumentToolRun)
   const startCitationEnhancement = useWorkspaceStore(state => state.startCitationEnhancement)
   const setAIStage = useWorkspaceStore(state => state.setAIStage)
   const setActiveSessionId = useWorkspaceStore(state => state.setActiveSessionId)
@@ -44,7 +47,7 @@ export function AIChatInput() {
 
   const runAIRequest = useCallback((
     userRequest: string,
-    mode: 'rewrite' | 'citation_enhance' = 'rewrite',
+    mode: 'rewrite' | DocumentToolMode | 'citation_enhance' = 'rewrite',
     targetBlockId?: string,
   ) => {
     const trimmedRequest = userRequest.trim()
@@ -54,7 +57,9 @@ export function AIChatInput() {
 
     const targetBlock = mode === 'citation_enhance'
       ? startCitationEnhancement(targetBlockId ?? '')
-      : startAIRun(targetBlockId)
+      : mode === 'rewrite'
+        ? startAIRun(targetBlockId)
+        : startDocumentToolRun(mode, targetBlockId ?? '')
 
     if (!targetBlock) {
       failAIRunWithFallback('当前文档没有可改写的正文段落')
@@ -62,9 +67,7 @@ export function AIChatInput() {
     }
 
     const modeInstruction = getModeInstruction(selectedMode)
-    const instruction = mode === 'citation_enhance'
-      ? '请对下方目标段落进行引用增强：在保持原意的前提下补充学术依据、引用线索和可被文献支撑的表述，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
-      : '请根据用户需求改写下方目标段落，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
+    const instruction = getDocumentInstruction(mode)
 
     const prompt = [
       getContextInstruction(workbenchContext),
@@ -123,6 +126,7 @@ export function AIChatInput() {
     setAIStage,
     startAIRun,
     startCitationEnhancement,
+    startDocumentToolRun,
     upsertRagGaps,
     upsertRagPapers,
     workbenchContext,
@@ -135,6 +139,14 @@ export function AIChatInput() {
     handledCitationRequestIdRef.current = citationEnhancementRequest.id
     runAIRequest('引用增强：请为当前段落补充更充分的学术依据和引用支撑。', 'citation_enhance', citationEnhancementRequest.blockId)
   }, [citationEnhancementRequest, runAIRequest])
+
+  useEffect(() => {
+    if (!documentToolRequest) return
+    if (handledDocumentToolRequestIdRef.current === documentToolRequest.id) return
+
+    handledDocumentToolRequestIdRef.current = documentToolRequest.id
+    runAIRequest(getDocumentToolRequest(documentToolRequest.tool), documentToolRequest.tool, documentToolRequest.blockId)
+  }, [documentToolRequest, runAIRequest])
 
   const handleSend = () => {
     if (!input.trim() || isGenerating) return
@@ -168,20 +180,24 @@ export function AIChatInput() {
           {quickModes.map(mode => {
             const Icon = mode.icon
             const isCitationEnhance = mode.id === 'citation'
+            const isDisabled = !!mode.disabledReason || (isCitationEnhance && isGenerating)
             const active = selectedMode === mode.id
+            const buttonClassName = mode.disabledReason
+              ? 'cursor-not-allowed border-scholar-border bg-slate-50 text-scholar-text-weak'
+              : active
+                ? 'border-scholar-primary/40 bg-blue-50 text-scholar-primary'
+                : 'border-scholar-border text-scholar-text-secondary hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary'
+
             return (
               <button
                 key={mode.label}
                 type="button"
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                  active
-                    ? 'border-scholar-primary/40 bg-blue-50 text-scholar-primary'
-                    : 'border-scholar-border text-scholar-text-secondary hover:border-scholar-primary/30 hover:bg-blue-50 hover:text-scholar-primary'
-                }`}
+                title={mode.disabledReason}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${buttonClassName}`}
                 onClick={isCitationEnhance
                   ? () => runAIRequest('引用增强：请为当前段落补充学术依据和引用支撑。', 'citation_enhance', selectedBlockId ?? undefined)
                   : () => setSelectedMode(mode.id)}
-                disabled={isCitationEnhance && isGenerating}
+                disabled={isDisabled}
                 aria-pressed={active}
               >
                 <Icon size={14} />
@@ -219,6 +235,32 @@ export function AIChatInput() {
 function getContextInstruction(context: ReturnType<typeof useLayoutStore.getState>['workbenchContext']): string {
   if (!context) return '当前研究上下文：空白工作台'
   return `当前研究上下文：${context.courseTitle ?? '未指定课程'} / ${context.sourceTitle} / ${context.actionType}`
+}
+
+function getDocumentInstruction(mode: 'rewrite' | DocumentToolMode | 'citation_enhance'): string {
+  switch (mode) {
+    case 'document_rewrite':
+      return '请对下方目标段落执行改写：保持原意和事实边界，优化学术表达、句式清晰度和段落衔接，只输出改写后的段落正文，不要输出解释、标题或 Markdown 列表。'
+    case 'expand':
+      return '请对下方目标段落执行扩写：在不引入未经核验事实的前提下补充研究背景、论证依据和必要过渡，只输出扩写后的段落正文，不要输出解释、标题或 Markdown 列表。'
+    case 'logic_check':
+      return '请对下方目标段落执行逻辑检查：修正论证顺序、概念跳跃、因果衔接和结论支撑问题，只输出逻辑检查后的段落正文，不要输出解释、标题或 Markdown 列表。'
+    case 'citation_enhance':
+      return '请对下方目标段落进行引用增强：在保持原意的前提下补充学术依据、引用线索和可被文献支撑的表述，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
+    case 'rewrite':
+      return '请根据用户需求改写下方目标段落，只输出修改后的段落正文，不要输出解释、标题或 Markdown 列表。'
+  }
+}
+
+function getDocumentToolRequest(tool: DocumentToolMode): string {
+  switch (tool) {
+    case 'document_rewrite':
+      return '改写：请优化当前段落的学术表达和行文连贯性。'
+    case 'expand':
+      return '扩写：请为当前段落补充背景、论据和过渡。'
+    case 'logic_check':
+      return '逻辑检查：请检查并修正当前段落的论证顺序和因果衔接。'
+  }
 }
 
 function getModeInstruction(mode: QuickModeId): string {

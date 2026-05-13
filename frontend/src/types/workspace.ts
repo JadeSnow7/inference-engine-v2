@@ -73,7 +73,7 @@ export interface DocumentSuggestion {
 }
 
 export type AIRunStatus = 'idle' | 'retrieving' | 'reasoning' | 'generating' | 'done' | 'error' | 'canceled'
-export type WorkspaceSaveStatus = 'saved' | 'modified' | 'local-saved'
+export type WorkspaceSaveStatus = 'saved' | 'saving' | 'modified' | 'local-saved' | 'error'
 
 export type RightPanelMode = 'graph' | 'list'
 

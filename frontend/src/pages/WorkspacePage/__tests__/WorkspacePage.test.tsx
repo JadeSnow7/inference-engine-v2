@@ -234,6 +234,30 @@ describe('WorkspacePage', () => {
     })
   })
 
+  it.each([
+    ['改写 block-intro-2', '改写', '改写建议', '改写后的段落内容。'],
+    ['扩写 block-intro-2', '扩写', '扩写建议', '扩写后的段落内容，补充了更多背景和论据。'],
+    ['逻辑检查 block-intro-2', '逻辑检查', '逻辑检查建议', '逻辑检查后的段落内容，修正了论证顺序。'],
+  ])('runs the %s document tool through SSE', async (buttonName, promptKeyword, suggestionTitle, generatedText) => {
+    connectSSE.mockImplementation((message, handlers) => {
+      expect(message).toContain(promptKeyword)
+      expect(message).toContain('本文旨在综述近年来基于深度学习的图像分类方法')
+      handlers.onToken(generatedText)
+      handlers.onDone()
+      return { abort: vi.fn() }
+    })
+
+    render(<WorkspacePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: buttonName }))
+
+    expect(connectSSE).toHaveBeenCalledTimes(1)
+    expect(useWorkspaceStore.getState().selectedBlockId).toBe('block-intro-2')
+    expect(useWorkspaceStore.getState().currentSuggestion?.title).toBe(suggestionTitle)
+    expect(screen.getByText(suggestionTitle)).toBeInTheDocument()
+    expect(screen.getAllByText(generatedText).length).toBeGreaterThan(0)
+  })
+
   it('selects the first cited document block when a graph node is clicked', async () => {
     render(<WorkspacePage />)
 
@@ -323,6 +347,30 @@ describe('WorkspacePage', () => {
     expect(screen.getByText('真实 SSE 改写后的段落内容。')).toBeInTheDocument()
     expect(screen.getByText('暂无待处理修改建议')).toBeInTheDocument()
     expect(screen.getByText('已根据真实 AI 输出生成一条可审阅的文档修改建议。')).toBeInTheDocument()
+  })
+
+  it('keeps web search mode disabled until a real provider is configured', async () => {
+    connectSSE.mockImplementation((message, handlers) => {
+      expect(message).not.toContain('联网搜索意图')
+      handlers.onToken('普通深度思考输出。')
+      handlers.onDone()
+      return { abort: vi.fn() }
+    })
+
+    render(<WorkspacePage />)
+
+    const webSearchButton = screen.getByRole('button', { name: '联网搜索' })
+    expect(webSearchButton).toBeDisabled()
+    expect(webSearchButton).toHaveAttribute('title', '后端未配置实时公网搜索，暂不可用')
+
+    fireEvent.click(webSearchButton)
+    fireEvent.change(screen.getByPlaceholderText(/输入您的问题或需求/), {
+      target: { value: '请检查是否需要外部事实' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(connectSSE).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText('普通深度思考输出。').length).toBeGreaterThan(0)
   })
 
   it('does not start a second SSE request while generation is running', async () => {

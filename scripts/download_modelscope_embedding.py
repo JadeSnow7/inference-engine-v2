@@ -8,11 +8,17 @@ from modelscope.hub.snapshot_download import snapshot_download
 
 
 DEFAULT_MODEL_ID = "BAAI/bge-small-zh-v1.5"
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "modelscope"
+DEFAULT_CACHE_DIR = Path("data") / "modelscope"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Download the local embedding model from ModelScope.")
+    parser = argparse.ArgumentParser(
+        description="Download the local embedding model from ModelScope.",
+        epilog=(
+            "Refresh workflow: run this script from the repository root, then set "
+            "MODELSCOPE_EMBED_MODEL_PATH to the printed local path before enabling ENABLE_LOCAL_RAG."
+        ),
+    )
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     return parser.parse_args()

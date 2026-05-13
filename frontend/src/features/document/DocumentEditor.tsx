@@ -1,15 +1,15 @@
 import { Loader2, Sparkles } from 'lucide-react'
-import { useWorkspaceStore } from '../../store/workspace'
+import { useWorkspaceStore, type DocumentToolMode } from '../../store/workspace'
 import type { CitationRiskLevel, DocumentBlock } from '../../types/workspace'
 import { CitationHighlight } from './CitationHighlight'
 import { DocumentOutlineCard } from './DocumentOutlineCard'
 import { DocumentToolbar } from './DocumentToolbar'
 
 const actionItems = [
-  { label: '改写未接入', kind: 'disabled' },
-  { label: '扩写未接入', kind: 'disabled' },
+  { label: '改写', kind: 'document_rewrite' },
+  { label: '扩写', kind: 'expand' },
   { label: '引用增强', kind: 'citation' },
-  { label: '逻辑检查未接入', kind: 'disabled' },
+  { label: '逻辑检查', kind: 'logic_check' },
 ] as const
 
 export function DocumentEditor() {
@@ -25,6 +25,7 @@ export function DocumentEditor() {
   const setSelectedBlock = useWorkspaceStore(state => state.setSelectedBlock)
   const selectCitationReference = useWorkspaceStore(state => state.selectCitationReference)
   const requestCitationEnhancement = useWorkspaceStore(state => state.requestCitationEnhancement)
+  const requestDocumentTool = useWorkspaceStore(state => state.requestDocumentTool)
   const selectedReferenceIds = selectedReferenceId
     ? [selectedReferenceId]
     : graphNodes.find(node => node.id === selectedGraphNodeId)?.referenceIds ?? []
@@ -73,7 +74,9 @@ export function DocumentEditor() {
                     isGenerating && citationEnhancementRequest?.blockId === block.id
                   }
                   isCitationEnhanceDisabled={isGenerating}
+                  areDocumentToolsDisabled={isGenerating}
                   onSelect={() => setSelectedBlock(block.id)}
+                  onDocumentTool={(tool) => requestDocumentTool(tool, block.id)}
                   onCitationEnhance={() => requestCitationEnhancement(block.id)}
                   onCitationClick={(referenceId) => selectCitationReference(referenceId, block.id)}
                   selectedReferenceIds={selectedReferenceIds}
@@ -220,7 +223,9 @@ function DocumentBlockView({
   active,
   isEnhancing,
   isCitationEnhanceDisabled,
+  areDocumentToolsDisabled,
   onSelect,
+  onDocumentTool,
   onCitationEnhance,
   onCitationClick,
   selectedReferenceIds,
@@ -229,7 +234,9 @@ function DocumentBlockView({
   active: boolean
   isEnhancing: boolean
   isCitationEnhanceDisabled: boolean
+  areDocumentToolsDisabled: boolean
   onSelect: () => void
+  onDocumentTool: (tool: DocumentToolMode) => void
   onCitationEnhance: () => void
   onCitationClick: (referenceId: string) => void
   selectedReferenceIds: string[]
@@ -277,18 +284,18 @@ function DocumentBlockView({
         <Sparkles size={14} className="ml-1 text-scholar-primary" />
         {actionItems.map(item => {
           const isCitation = item.kind === 'citation'
-          const disabled = !isCitation || isCitationEnhanceDisabled
+          const disabled = isCitation ? isCitationEnhanceDisabled : areDocumentToolsDisabled
 
           return (
           <button
             key={item.label}
-            aria-label={isCitation ? `引用增强 ${block.id}` : item.label}
+            aria-label={`${item.label} ${block.id}`}
             className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
               disabled
                 ? 'cursor-not-allowed text-scholar-text-weak'
                 : 'text-scholar-text-secondary hover:bg-blue-50 hover:text-scholar-primary'
             }`}
-            onClick={isCitation ? onCitationEnhance : undefined}
+            onClick={isCitation ? onCitationEnhance : () => onDocumentTool(item.kind)}
             disabled={disabled}
           >
             {isCitation && isEnhancing

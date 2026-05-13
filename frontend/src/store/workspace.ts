@@ -1,4 +1,14 @@
 import { create } from 'zustand'
+import {
+  createDocument,
+  createDocumentVersion as createBackendDocumentVersion,
+  fetchDocument,
+  fetchDocumentVersions,
+  restoreDocumentVersion as restoreBackendDocumentVersion,
+  updateDocument,
+  type PersistedDocument,
+  type PersistedDocumentVersion,
+} from '../api/documents'
 import { fetchSessionArtifact, fetchSessionMessages, type MessageItem } from '../api/sessions'
 import { workspaceMock } from '../mocks/workspaceMock'
 import type { GapItem, PaperItem, ReferenceEventItem } from '../types/events'
@@ -32,7 +42,15 @@ interface CitationEnhancementRequest {
   blockId: string
 }
 
-type AIRunMode = 'rewrite' | 'citation_enhance'
+export type DocumentToolMode = 'document_rewrite' | 'expand' | 'logic_check'
+
+interface DocumentToolRequest {
+  id: string
+  blockId: string
+  tool: DocumentToolMode
+}
+
+type AIRunMode = 'rewrite' | DocumentToolMode | 'citation_enhance'
 
 interface RestoreNotice {
   versionTitle: string
@@ -41,6 +59,7 @@ interface RestoreNotice {
 }
 
 interface WorkspaceState {
+  activeDocumentId: string | null
   activeConversationId: string | null
   activeVersionId: string | null
   activeSessionId: string | null
@@ -55,11 +74,13 @@ interface WorkspaceState {
   aiErrorMessage: string
   generatedText: string
   saveStatus: WorkspaceSaveStatus
+  documentErrorMessage: string
   restoreSessionNotice: string
   restoredMessages: MessageItem[]
   lastRestoreNotice: RestoreNotice | null
   currentSuggestion: DocumentSuggestion | null
   citationEnhancementRequest: CitationEnhancementRequest | null
+  documentToolRequest: DocumentToolRequest | null
   currentChangeIndex: number
   documentVersions: DocumentVersionSnapshot[]
   documentBlocks: DocumentBlock[]
@@ -83,13 +104,19 @@ interface WorkspaceState {
   setAIRunStatus: (status: AIRunStatus) => void
   setAIStage: (status: AIRunStatus, label: string) => void
   setSaveStatus: (status: WorkspaceSaveStatus) => void
+  loadDocument: (documentId: string) => Promise<void>
+  saveCurrentDocument: () => Promise<void>
+  createCurrentDocumentVersion: (label?: string) => Promise<void>
+  restoreDocumentVersion: (versionId: string) => Promise<void>
   setRestoreSessionNotice: (notice: string) => void
   dismissRestoreNotice: () => void
   setCurrentSuggestion: (suggestion: DocumentSuggestion | null) => void
   requestCitationEnhancement: (blockId: string) => void
+  requestDocumentTool: (tool: DocumentToolMode, blockId: string) => void
   setCurrentChangeIndex: (index: number) => void
   aiRunMode: AIRunMode
   startAIRun: (targetBlockIdOverride?: string) => DocumentBlock | null
+  startDocumentToolRun: (tool: DocumentToolMode, blockId: string) => DocumentBlock | null
   startCitationEnhancement: (blockId: string) => DocumentBlock | null
   appendGeneratedToken: (token: string) => void
   finishAIRunAsSuggestion: () => void
@@ -199,6 +226,7 @@ function initialWorkspaceState() {
   const documentVersions = createInitialVersionSnapshots(documentBlocks)
 
   return {
+    activeDocumentId: null,
     activeConversationId: null,
     activeVersionId: documentVersions[0]?.id ?? null,
     activeSessionId: null,
@@ -213,11 +241,13 @@ function initialWorkspaceState() {
     aiErrorMessage: '',
     generatedText: '',
     saveStatus: 'saved' as WorkspaceSaveStatus,
+    documentErrorMessage: '',
     restoreSessionNotice: '',
     restoredMessages: [],
     lastRestoreNotice: null,
     currentSuggestion: null,
     citationEnhancementRequest: null,
+    documentToolRequest: null,
     aiRunMode: 'rewrite' as AIRunMode,
     currentChangeIndex: 0,
     documentVersions,
@@ -229,6 +259,33 @@ function initialWorkspaceState() {
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
   }
+}
+
+function documentTitleFromBlocks(blocks: DocumentBlock[]): string {
+  return blocks.find(block => block.type === 'heading')?.content.trim() || '研究工作台文档'
+}
+
+function messageFromError(error: unknown): string {
+  return error instanceof Error ? error.message : '文档服务暂时不可用'
+}
+
+function versionSnapshotFromApi(
+  version: PersistedDocumentVersion,
+  isCurrent: boolean,
+): DocumentVersionSnapshot {
+  return {
+    id: version.id,
+    label: version.label || '后端版本',
+    summary: version.title ? `保存自 ${version.title}` : '后端保存的文档版本',
+    updatedAt: version.createdAt,
+    isCurrent,
+    createdAt: version.createdAt,
+    documentBlocks: cloneDocumentBlocksFrom(version.blocks),
+  }
+}
+
+function documentBlocksFromApi(document: PersistedDocument): DocumentBlock[] {
+  return cloneDocumentBlocksFrom(document.blocks)
 }
 
 function getLocalStorage(): Storage | null {
@@ -355,6 +412,81 @@ function firstParagraphBlock(blocks: DocumentBlock[]): DocumentBlock | null {
   return blocks.find(block => block.type === 'paragraph') ?? null
 }
 
+const suggestionMetadataByMode: Record<AIRunMode, {
+  title: string
+  summary: string
+  reason: string
+  confidence: number
+  reasons: string[]
+  reasoningSteps: string[]
+}> = {
+  rewrite: {
+    title: 'AI 生成的修改建议',
+    summary: '已根据真实 AI 输出生成一条可审阅的文档修改建议。',
+    reason: '根据用户请求和真实 SSE 输出生成可审阅修改建议。',
+    confidence: 0.72,
+    reasons: ['根据用户请求和真实 SSE 输出生成可审阅修改建议。'],
+    reasoningSteps: [
+      '复用 /api/chat 的 SSE 流式输出。',
+      '累积 token 并将结果包装为可审阅建议。',
+      '等待用户接受或拒绝后再更新正文。',
+    ],
+  },
+  document_rewrite: {
+    title: '改写建议',
+    summary: '已为所选段落生成改写建议，请审阅后决定是否接受。',
+    reason: '根据真实 SSE 输出，在保持原意的前提下优化段落表达。',
+    confidence: 0.76,
+    reasons: ['改写模式：优化学术表达、句式和衔接，同时保留原始含义。'],
+    reasoningSteps: [
+      '读取用户选中的正文段落。',
+      '通过 /api/chat 生成改写后的段落正文。',
+      '将输出包装为可接受或拒绝的修改建议。',
+    ],
+  },
+  expand: {
+    title: '扩写建议',
+    summary: '已为所选段落生成扩写建议，请审阅后决定是否接受。',
+    reason: '根据真实 SSE 输出，为该段落补充背景、论据和必要过渡。',
+    confidence: 0.74,
+    reasons: ['扩写模式：补充研究背景、论证依据和上下文衔接。'],
+    reasoningSteps: [
+      '读取用户选中的正文段落。',
+      '通过 /api/chat 生成扩写后的段落正文。',
+      '将输出包装为可接受或拒绝的修改建议。',
+    ],
+  },
+  logic_check: {
+    title: '逻辑检查建议',
+    summary: '已为所选段落生成逻辑检查建议，请审阅后决定是否接受。',
+    reason: '根据真实 SSE 输出，修正该段落的论证顺序、因果关系和衔接问题。',
+    confidence: 0.78,
+    reasons: ['逻辑检查模式：检查论证顺序、概念跳跃、因果衔接和结论支撑。'],
+    reasoningSteps: [
+      '读取用户选中的正文段落。',
+      '通过 /api/chat 检查并修正论证逻辑。',
+      '将输出包装为可接受或拒绝的修改建议。',
+    ],
+  },
+  citation_enhance: {
+    title: '引用增强建议',
+    summary: '已为所选段落生成引用增强建议，请审阅后决定是否接受。',
+    reason: '根据真实 SSE 输出，已为该段落补充更充分的学术依据与引用支撑。',
+    confidence: 0.85,
+    reasons: [
+      '根据真实 SSE 输出，已为该段落补充更充分的学术依据与引用支撑。',
+      '引用增强模式：AI 保留原意的同时，补充可被文献支撑的学术表述。',
+      '建议审阅新增表述是否与您的论文风格一致。',
+    ],
+    reasoningSteps: [
+      '识别目标段落中缺乏文献支撑的陈述。',
+      '通过 GraphRAG 检索相关文献并匹配学术依据。',
+      '在保持原意前提下重写段落，补充引用线索和学术表述。',
+      '等待用户接受或拒绝后再更新正文。',
+    ],
+  },
+}
+
 function createSuggestionFromGeneratedText(
   beforeBlocks: DocumentBlock[],
   generatedText: string,
@@ -365,24 +497,18 @@ function createSuggestionFromGeneratedText(
   if (!beforeBlock || !trimmed) return null
 
   const afterBlock = { ...cloneDocumentBlock(beforeBlock), content: trimmed }
-
-  const isCitationEnhance = mode === 'citation_enhance'
-  const reason = isCitationEnhance
-    ? '根据真实 SSE 输出，已为该段落补充更充分的学术依据与引用支撑。'
-    : '根据用户请求和真实 SSE 输出生成可审阅修改建议。'
+  const metadata = suggestionMetadataByMode[mode]
 
   return {
     id: `sse-suggestion-${Date.now()}`,
-    title: isCitationEnhance ? '引用增强建议' : 'AI 生成的修改建议',
-    summary: isCitationEnhance
-      ? '已为所选段落生成引用增强建议，请审阅后决定是否接受。'
-      : '已根据真实 AI 输出生成一条可审阅的文档修改建议。',
+    title: metadata.title,
+    summary: metadata.summary,
     targetBlockIds: [beforeBlock.id],
     operation: 'replace_blocks',
     beforeBlocks: [cloneDocumentBlock(beforeBlock)],
     afterBlocks: [afterBlock],
-    reason,
-    confidence: isCitationEnhance ? 0.85 : 0.72,
+    reason: metadata.reason,
+    confidence: metadata.confidence,
     createdAt: new Date().toISOString(),
     changes: [{
       id: `sse-change-${beforeBlock.id}-${Date.now()}`,
@@ -390,27 +516,10 @@ function createSuggestionFromGeneratedText(
       type: 'modify',
       originalText: beforeBlock.content,
       revisedText: trimmed,
-      reason,
+      reason: metadata.reason,
     }],
-    reasons: isCitationEnhance
-      ? [
-          reason,
-          '引用增强模式：AI 保留原意的同时，补充可被文献支撑的学术表述。',
-          '建议审阅新增表述是否与您的论文风格一致。',
-        ]
-      : [reason],
-    reasoningSteps: isCitationEnhance
-      ? [
-          '识别目标段落中缺乏文献支撑的陈述。',
-          '通过 GraphRAG 检索相关文献并匹配学术依据。',
-          '在保持原意前提下重写段落，补充引用线索和学术表述。',
-          '等待用户接受或拒绝后再更新正文。',
-        ]
-      : [
-          '复用 /api/chat 的 SSE 流式输出。',
-          '累积 token 并将结果包装为可审阅建议。',
-          '等待用户接受或拒绝后再更新正文。',
-        ],
+    reasons: [...metadata.reasons],
+    reasoningSteps: [...metadata.reasoningSteps],
   }
 }
 
@@ -801,6 +910,132 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setAIRunStatus: (status) => set({ aiRunStatus: status }),
   setAIStage: (status, label) => set({ aiRunStatus: status, aiStageLabel: label }),
   setSaveStatus: (status) => set({ saveStatus: status }),
+  loadDocument: async (documentId) => {
+    set({ saveStatus: 'saving', documentErrorMessage: '' })
+    try {
+      const [document, versions] = await Promise.all([
+        fetchDocument(documentId),
+        fetchDocumentVersions(documentId),
+      ])
+      const activeVersionId = versions[0]?.id ?? null
+      set({
+        activeDocumentId: document.id,
+        activeVersionId,
+        documentBlocks: documentBlocksFromApi(document),
+        documentVersions: versions.map((version, index) => versionSnapshotFromApi(version, index === 0)),
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        previewVersionId: null,
+        isRestoringVersion: false,
+        saveStatus: 'saved',
+        documentErrorMessage: '',
+      })
+    } catch (error) {
+      set({
+        saveStatus: 'modified',
+        documentErrorMessage: messageFromError(error),
+      })
+    }
+  },
+  saveCurrentDocument: async () => {
+    const state = get()
+    const title = documentTitleFromBlocks(state.documentBlocks)
+    const blocks = cloneDocumentBlocksFrom(state.documentBlocks)
+    set({ saveStatus: 'saving', documentErrorMessage: '' })
+
+    try {
+      const document = state.activeDocumentId
+        ? await updateDocument(state.activeDocumentId, { title, blocks })
+        : await createDocument({ title, blocks })
+      set({
+        activeDocumentId: document.id,
+        documentBlocks: documentBlocksFromApi(document),
+        saveStatus: 'saved',
+        documentErrorMessage: '',
+      })
+    } catch (error) {
+      const persisted = persistWorkspaceSnapshot(createWorkspaceSnapshot(
+        state.documentBlocks,
+        state.documentVersions,
+        state.activeVersionId,
+      ))
+      set({
+        saveStatus: persisted ? 'local-saved' : 'modified',
+        documentErrorMessage: messageFromError(error),
+      })
+    }
+  },
+  createCurrentDocumentVersion: async (label) => {
+    const documentId = get().activeDocumentId
+    if (!documentId) {
+      set({
+        saveStatus: 'modified',
+        documentErrorMessage: '当前文档尚未连接到后端',
+      })
+      return
+    }
+
+    set({ saveStatus: 'saving', documentErrorMessage: '' })
+    try {
+      const version = await createBackendDocumentVersion(documentId, label)
+      const snapshot = versionSnapshotFromApi(version, true)
+      set((state) => ({
+        activeVersionId: snapshot.id,
+        documentVersions: [
+          snapshot,
+          ...state.documentVersions.map(existing => ({ ...cloneVersionSnapshot(existing), isCurrent: false })),
+        ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS),
+        saveStatus: 'saved',
+        documentErrorMessage: '',
+      }))
+    } catch (error) {
+      set({
+        saveStatus: 'modified',
+        documentErrorMessage: messageFromError(error),
+      })
+    }
+  },
+  restoreDocumentVersion: async (versionId) => {
+    const documentId = get().activeDocumentId
+    if (!documentId) {
+      set({
+        saveStatus: 'modified',
+        documentErrorMessage: '当前文档尚未连接到后端',
+      })
+      return
+    }
+
+    set({ isRestoringVersion: true, saveStatus: 'saving', documentErrorMessage: '' })
+    try {
+      const beforeBlocks = get().documentBlocks
+      const document = await restoreBackendDocumentVersion(documentId, versionId)
+      const documentBlocks = documentBlocksFromApi(document)
+      const changedBlockCount = changedVersionBlocks(beforeBlocks, documentBlocks).length
+      set((state) => ({
+        documentBlocks,
+        activeVersionId: versionId,
+        documentVersions: markCurrentVersion(state.documentVersions, versionId),
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        previewVersionId: null,
+        isRestoringVersion: false,
+        selectedBlockId: selectedBlockStillExists(documentBlocks, state.selectedBlockId) ? state.selectedBlockId : null,
+        saveStatus: 'saved',
+        documentErrorMessage: '',
+        lastRestoreNotice: {
+          versionTitle: state.documentVersions.find(version => version.id === versionId)?.label ?? '后端版本',
+          changedBlockCount,
+          restoredAt: new Date().toISOString(),
+        },
+      }))
+    } catch (error) {
+      set({
+        isRestoringVersion: false,
+        saveStatus: 'modified',
+        documentErrorMessage: messageFromError(error),
+      })
+    }
+  },
   setRestoreSessionNotice: (notice) => set({ restoreSessionNotice: notice }),
   dismissRestoreNotice: () => set({ lastRestoreNotice: null }),
   setCurrentSuggestion: (suggestion) => set({
@@ -813,6 +1048,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     citationEnhancementRequest: {
       id: `citation-enhancement-${blockId}-${Date.now()}`,
       blockId,
+    },
+  }),
+  requestDocumentTool: (tool, blockId) => set({
+    selectedBlockId: blockId,
+    rightPanelMode: 'graph',
+    documentToolRequest: {
+      id: `document-tool-${tool}-${blockId}-${Date.now()}`,
+      blockId,
+      tool,
     },
   }),
   setCurrentChangeIndex: (index) => set((state) => {
@@ -844,6 +1088,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         currentSuggestion: null,
         currentChangeIndex: 0,
         aiRunMode: 'rewrite',
+        pendingBeforeBlocks: targetBlock ? [cloneDocumentBlock(targetBlock)] : [],
+        ragPapers: [],
+        ragGaps: [],
+        graphNodes: cloneGraphNodes(),
+        graphEdges: cloneGraphEdges(),
+        references: cloneReferences(),
+      }
+    })
+
+    return targetBlock ? cloneDocumentBlock(targetBlock) : null
+  },
+  startDocumentToolRun: (tool, blockId) => {
+    let targetBlock: DocumentBlock | null = null
+
+    set((state) => {
+      targetBlock = state.documentBlocks.find(block => block.id === blockId && block.type === 'paragraph')
+        ?? firstParagraphBlock(state.documentBlocks)
+
+      return {
+        aiRunStatus: 'retrieving',
+        aiStageLabel: '正在检索',
+        aiErrorMessage: '',
+        generatedText: '',
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        aiRunMode: tool,
+        selectedBlockId: targetBlock?.id ?? state.selectedBlockId,
         pendingBeforeBlocks: targetBlock ? [cloneDocumentBlock(targetBlock)] : [],
         ragPapers: [],
         ragGaps: [],
@@ -973,69 +1244,83 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
   }),
-  acceptCurrentChange: () => set((state) => {
-    if (!state.currentSuggestion) return state
+  acceptCurrentChange: () => {
+    let shouldSaveBackend = false
+    set((state) => {
+      if (!state.currentSuggestion) return state
 
-    const acceptedChange = state.currentSuggestion.changes[state.currentChangeIndex]
-    if (!acceptedChange) return state
+      const acceptedChange = state.currentSuggestion.changes[state.currentChangeIndex]
+      if (!acceptedChange) return state
 
-    const documentBlocks = buildUpdatedBlocksFromChange(state.documentBlocks, acceptedChange)
-    const acceptedSuggestion = filterSuggestionToChanges(state.currentSuggestion, [acceptedChange])
-    const remainingChanges = state.currentSuggestion.changes.filter(change => change.id !== acceptedChange.id)
-    const currentSuggestion = remainingChanges.length > 0
-      ? filterSuggestionToChanges(state.currentSuggestion, remainingChanges)
-      : null
-    const currentChangeIndex = currentSuggestion
-      ? Math.min(state.currentChangeIndex, currentSuggestion.changes.length - 1)
-      : 0
-    const newVersion = createAcceptedVersionSnapshot(
-      acceptedSuggestion,
-      documentBlocks,
-      state.documentVersions.length,
-    )
-    const documentVersions = [
-      newVersion,
-      ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
-    ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
-    const persisted = persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const documentBlocks = buildUpdatedBlocksFromChange(state.documentBlocks, acceptedChange)
+      const acceptedSuggestion = filterSuggestionToChanges(state.currentSuggestion, [acceptedChange])
+      const remainingChanges = state.currentSuggestion.changes.filter(change => change.id !== acceptedChange.id)
+      const currentSuggestion = remainingChanges.length > 0
+        ? filterSuggestionToChanges(state.currentSuggestion, remainingChanges)
+        : null
+      const currentChangeIndex = currentSuggestion
+        ? Math.min(state.currentChangeIndex, currentSuggestion.changes.length - 1)
+        : 0
+      const newVersion = createAcceptedVersionSnapshot(
+        acceptedSuggestion,
+        documentBlocks,
+        state.documentVersions.length,
+      )
+      const documentVersions = [
+        newVersion,
+        ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
+      ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
+      shouldSaveBackend = Boolean(state.activeDocumentId)
+      const persisted = shouldSaveBackend
+        ? false
+        : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
 
-    return {
-      documentBlocks,
-      documentVersions,
-      currentSuggestion,
-      currentChangeIndex,
-      aiRunStatus: 'done',
-      aiStageLabel: currentSuggestion ? '局部修改已接受' : '生成完成',
-      saveStatus: persisted ? 'local-saved' : 'modified',
-      activeVersionId: newVersion.id,
-    }
-  }),
-  acceptSuggestion: () => set((state) => {
-    if (!state.currentSuggestion) return state
+      return {
+        documentBlocks,
+        documentVersions,
+        currentSuggestion,
+        currentChangeIndex,
+        aiRunStatus: 'done',
+        aiStageLabel: currentSuggestion ? '局部修改已接受' : '生成完成',
+        saveStatus: shouldSaveBackend ? 'saving' : persisted ? 'local-saved' : 'modified',
+        activeVersionId: newVersion.id,
+      }
+    })
+    if (shouldSaveBackend) void get().saveCurrentDocument()
+  },
+  acceptSuggestion: () => {
+    let shouldSaveBackend = false
+    set((state) => {
+      if (!state.currentSuggestion) return state
 
-    const documentBlocks = buildUpdatedBlocksFromSuggestion(state.documentBlocks, state.currentSuggestion)
-    const newVersion = createAcceptedVersionSnapshot(
-      state.currentSuggestion,
-      documentBlocks,
-      state.documentVersions.length,
-    )
-    const documentVersions = [
-      newVersion,
-      ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
-    ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
-    const persisted = persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const documentBlocks = buildUpdatedBlocksFromSuggestion(state.documentBlocks, state.currentSuggestion)
+      const newVersion = createAcceptedVersionSnapshot(
+        state.currentSuggestion,
+        documentBlocks,
+        state.documentVersions.length,
+      )
+      const documentVersions = [
+        newVersion,
+        ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
+      ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
+      shouldSaveBackend = Boolean(state.activeDocumentId)
+      const persisted = shouldSaveBackend
+        ? false
+        : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
 
-    return {
-      documentBlocks,
-      documentVersions,
-      currentSuggestion: null,
-      currentChangeIndex: 0,
-      aiRunStatus: 'done',
-      aiStageLabel: '生成完成',
-      saveStatus: persisted ? 'local-saved' : 'modified',
-      activeVersionId: newVersion.id,
-    }
-  }),
+      return {
+        documentBlocks,
+        documentVersions,
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        aiRunStatus: 'done',
+        aiStageLabel: '生成完成',
+        saveStatus: shouldSaveBackend ? 'saving' : persisted ? 'local-saved' : 'modified',
+        activeVersionId: newVersion.id,
+      }
+    })
+    if (shouldSaveBackend) void get().saveCurrentDocument()
+  },
   rejectSuggestion: () => set({
     currentSuggestion: null,
     currentChangeIndex: 0,

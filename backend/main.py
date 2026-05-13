@@ -6,8 +6,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.chat import router as chat_router
+from api.courses import router as courses_router
+from api.dashboard import router as dashboard_router
+from api.documents import router as documents_router
+from api.graph import router as graph_router
 from api.health import router as health_router
+from api.library import router as library_router
+from api.notifications import router as notifications_router
 from api.responses import register_error_handlers
+from api.search import router as search_router
+from api.settings import router as settings_router
 from api.users import router as users_router
 from api.writing import router as writing_router
 from config import settings
@@ -17,7 +25,16 @@ from rag.embed_adapter import DashScopeEmbedder
 from rag.graph import KnowledgeGraph, build_demo_graph
 from rag.norm_retriever import NormNodeRetriever
 from rag.retriever import DisabledRAGRetriever, GraphRAGRetriever
-from store.redis_store import RedisConversationStore, RedisProfileStore, UserStore
+from store.redis_store import (
+    RedisConversationStore,
+    RedisCourseStore,
+    RedisDocumentStore,
+    RedisEvidenceStore,
+    RedisNotificationStore,
+    RedisProfileStore,
+    RedisSettingsStore,
+    UserStore,
+)
 
 
 def build_norm_retriever() -> NormNodeRetriever:
@@ -31,6 +48,28 @@ def build_norm_retriever() -> NormNodeRetriever:
         return retriever
 
 
+def build_local_rag():
+    local_model_path = settings.local_embed_model_path
+    if not local_model_path:
+        print("[startup] Local GraphRAG disabled: MODELSCOPE_EMBED_MODEL_PATH or EMBED_MODEL must point to an existing local model path")
+        return None, None, DisabledRAGRetriever()
+
+    from sentence_transformers import SentenceTransformer
+
+    embedder = SentenceTransformer(local_model_path)
+    kg = KnowledgeGraph()
+    persist_path = Path(settings.GRAPH_PERSIST_PATH)
+    persist_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        kg.load(str(persist_path))
+        if kg.get_graph().number_of_nodes() == 0:
+            raise FileNotFoundError
+    except Exception:
+        kg = build_demo_graph(embedder)
+        kg.save(str(persist_path))
+    return embedder, kg, GraphRAGRetriever(kg, embedder)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -39,20 +78,7 @@ async def lifespan(app: FastAPI):
     rag = DisabledRAGRetriever()
 
     if settings.ENABLE_LOCAL_RAG:
-        from sentence_transformers import SentenceTransformer
-
-        embedder = SentenceTransformer(settings.EMBED_MODEL)
-        kg = KnowledgeGraph()
-        persist_path = Path(settings.GRAPH_PERSIST_PATH)
-        persist_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            kg.load(str(persist_path))
-            if kg.get_graph().number_of_nodes() == 0:
-                raise FileNotFoundError
-        except Exception:
-            kg = build_demo_graph()
-            kg.save(str(persist_path))
-        rag = GraphRAGRetriever(kg, embedder)
+        embedder, kg, rag = build_local_rag()
     elif settings.RAG_PROVIDER.lower() == "dashscope":
         rag = DashScopeKnowledgeRAGRetriever(
             api_key=settings.DASHSCOPE_API_KEY,
@@ -67,7 +93,12 @@ async def lifespan(app: FastAPI):
     app.state.rag = rag
     app.state.norm_retriever = build_norm_retriever()
     app.state.conv_manager = ConversationManager(RedisConversationStore(redis_client))
+    app.state.course_store = RedisCourseStore(redis_client)
+    app.state.document_store = RedisDocumentStore(redis_client)
+    app.state.evidence_store = RedisEvidenceStore(redis_client)
+    app.state.notification_store = RedisNotificationStore(redis_client)
     app.state.profile_store = RedisProfileStore(redis_client)
+    app.state.settings_store = RedisSettingsStore(redis_client)
     app.state.user_store = UserStore(redis_client)
     try:
         yield
@@ -85,6 +116,14 @@ app.add_middleware(
 )
 app.include_router(health_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
+app.include_router(courses_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
+app.include_router(graph_router, prefix="/api")
+app.include_router(library_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
+app.include_router(search_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")
 

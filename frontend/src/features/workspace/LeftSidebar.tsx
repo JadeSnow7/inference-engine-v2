@@ -12,6 +12,9 @@ import {
   Settings,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { SearchBox } from '../../components/workspace/SearchBox'
+import { SettingsDialog } from '../../components/workspace/SettingsDialog'
 import { useWorkspaceStore } from '../../store/workspace'
 import { VersionList } from '../version/VersionList'
 
@@ -27,6 +30,7 @@ export function LeftSidebar() {
   const setRightPanelMode = useWorkspaceStore(state => state.setRightPanelMode)
   const resetWorkspace = useWorkspaceStore(state => state.resetWorkspace)
   const setRestoreSessionNotice = useWorkspaceStore(state => state.setRestoreSessionNotice)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const handleResourceClick = (label: string) => {
     setRightPanelMode(label === '知识图谱' ? 'graph' : 'list')
@@ -51,14 +55,13 @@ export function LeftSidebar() {
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4">
         <section>
           <SectionTitle icon={<Bot size={15} />} title="对话历史" />
-          <label className="mb-3 block">
-            <input
-              disabled
-              aria-label="对话搜索暂未接入"
-              className="h-9 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas px-3 text-xs outline-none transition focus:border-scholar-primary/40 focus:bg-white"
-              placeholder="对话搜索暂未接入"
-            />
-          </label>
+          <SearchBox
+            ariaLabel="对话搜索"
+            placeholder="搜索对话"
+            scope="conversations"
+            wrapperClassName="relative mb-3"
+            inputClassName="h-9 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas pl-9 pr-3 text-xs outline-none transition focus:border-scholar-primary/40 focus:bg-white"
+          />
           <div className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3 text-xs text-scholar-text-secondary">
             {activeConversationId ? `当前会话：${activeConversationId}` : '暂无已恢复的历史会话'}
           </div>
@@ -91,10 +94,11 @@ export function LeftSidebar() {
       </div>
 
       <div className="flex items-center justify-around border-t border-scholar-border bg-scholar-bg-canvas/60 p-3">
-        <SidebarTool label="设置暂不可用" icon={<Settings size={16} />} disabled />
+        <SidebarTool label="设置" icon={<Settings size={16} />} onClick={() => setIsSettingsOpen(true)} />
         <SidebarTool label="帮助" icon={<HelpCircle size={16} />} onClick={() => setRestoreSessionNotice('提示：选择正文段落后，可在底部输入修改或规范审查需求')} />
         <SidebarTool label="全屏" icon={<Maximize2 size={16} />} onClick={() => void document.documentElement.requestFullscreen?.()} />
       </div>
+      {isSettingsOpen && <SettingsDialog onClose={() => setIsSettingsOpen(false)} />}
     </aside>
   )
 }

@@ -5,10 +5,23 @@ import type { DocumentSuggestion } from '../../types/workspace'
 
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
+const fetchDocument = vi.hoisted(() => vi.fn())
+const updateDocument = vi.hoisted(() => vi.fn())
+const fetchDocumentVersions = vi.hoisted(() => vi.fn())
+const createDocumentVersion = vi.hoisted(() => vi.fn())
+const restoreDocumentVersion = vi.hoisted(() => vi.fn())
 
 vi.mock('../../api/sessions', () => ({
   fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
   fetchSessionArtifact: (...args: unknown[]) => fetchSessionArtifact(...args),
+}))
+
+vi.mock('../../api/documents', () => ({
+  fetchDocument: (...args: unknown[]) => fetchDocument(...args),
+  updateDocument: (...args: unknown[]) => updateDocument(...args),
+  fetchDocumentVersions: (...args: unknown[]) => fetchDocumentVersions(...args),
+  createDocumentVersion: (...args: unknown[]) => createDocumentVersion(...args),
+  restoreDocumentVersion: (...args: unknown[]) => restoreDocumentVersion(...args),
 }))
 
 const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
@@ -31,6 +44,11 @@ describe('useWorkspaceStore', () => {
     installMemoryStorage()
     window.localStorage.removeItem(WORKBENCH_DRAFT_KEY)
     window.localStorage.removeItem(WORKBENCH_SNAPSHOT_KEY)
+    fetchDocument.mockReset()
+    updateDocument.mockReset()
+    fetchDocumentVersions.mockReset()
+    createDocumentVersion.mockReset()
+    restoreDocumentVersion.mockReset()
     useWorkspaceStore.getState().resetWorkspace()
   })
 
@@ -525,5 +543,154 @@ describe('useWorkspaceStore', () => {
     useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
     useWorkspaceStore.getState().rejectSuggestion()
     expect(useWorkspaceStore.getState().lastRestoreNotice).toEqual(notice)
+  })
+
+  it('loads document blocks and versions from the backend document API', async () => {
+    fetchDocument.mockResolvedValue({
+      id: 'doc-1',
+      title: 'Backend document',
+      courseId: 'course-1',
+      blocks: [
+        { id: 'heading-1', type: 'heading', headingLevel: 1, content: 'Backend document' },
+        { id: 'para-1', type: 'paragraph', content: 'Loaded from API.' },
+      ],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:01:00.000Z',
+    })
+    fetchDocumentVersions.mockResolvedValue([{
+      id: 'version-1',
+      documentId: 'doc-1',
+      label: 'Initial version',
+      title: 'Backend document',
+      blocks: [{ id: 'para-1', type: 'paragraph', content: 'Loaded from API.' }],
+      metadata: {},
+      createdAt: '2026-05-13T00:02:00.000Z',
+    }])
+
+    await useWorkspaceStore.getState().loadDocument('doc-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(fetchDocument).toHaveBeenCalledWith('doc-1')
+    expect(fetchDocumentVersions).toHaveBeenCalledWith('doc-1')
+    expect(state.activeDocumentId).toBe('doc-1')
+    expect(state.documentBlocks[1].content).toBe('Loaded from API.')
+    expect(state.documentVersions[0]).toEqual(expect.objectContaining({
+      id: 'version-1',
+      label: 'Initial version',
+      isCurrent: true,
+    }))
+    expect(state.saveStatus).toBe('saved')
+    expect(state.documentErrorMessage).toBe('')
+  })
+
+  it('saves edited blocks to the active backend document', async () => {
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      documentBlocks: [{ id: 'para-1', type: 'paragraph', content: 'Edited content.' }],
+    })
+    updateDocument.mockResolvedValue({
+      id: 'doc-1',
+      title: 'Edited document',
+      blocks: [{ id: 'para-1', type: 'paragraph', content: 'Edited content.' }],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:05:00.000Z',
+    })
+
+    await useWorkspaceStore.getState().saveCurrentDocument()
+
+    expect(updateDocument).toHaveBeenCalledWith('doc-1', {
+      title: '研究工作台文档',
+      blocks: [{ id: 'para-1', type: 'paragraph', content: 'Edited content.' }],
+    })
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('persists accepted suggestions through the backend when a document is active', async () => {
+    const beforeBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(beforeBlock).toBeDefined()
+    updateDocument.mockResolvedValue({
+      id: 'doc-1',
+      title: 'Backend document',
+      blocks: [{ ...beforeBlock!, content: 'Accepted backend content.' }],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:05:00.000Z',
+    })
+    useWorkspaceStore.setState({ activeDocumentId: 'doc-1' })
+    useWorkspaceStore.getState().setCurrentSuggestion({
+      id: 'backend-suggestion',
+      title: '后端保存建议',
+      summary: '接受后应保存到后端。',
+      targetBlockIds: [beforeBlock!.id],
+      operation: 'replace_blocks',
+      beforeBlocks: [{ ...beforeBlock! }],
+      afterBlocks: [{ ...beforeBlock!, content: 'Accepted backend content.' }],
+      reason: '测试后端保存路径。',
+      confidence: 0.8,
+      createdAt: '2026-05-13T00:00:00.000Z',
+      changes: [{
+        id: 'backend-change',
+        blockId: beforeBlock!.id,
+        type: 'modify',
+        originalText: beforeBlock!.content,
+        revisedText: 'Accepted backend content.',
+        reason: '测试后端保存路径。',
+      }],
+      reasons: ['测试后端保存路径。'],
+      reasoningSteps: ['接受建议后保存。'],
+    })
+
+    useWorkspaceStore.getState().acceptSuggestion()
+
+    await vi.waitFor(() => {
+      expect(updateDocument).toHaveBeenCalled()
+    })
+    expect(window.localStorage.getItem(WORKBENCH_SNAPSHOT_KEY)).toBeNull()
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('creates backend versions and restores them through the document API', async () => {
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      documentBlocks: [{ id: 'para-1', type: 'paragraph', content: 'Current content.' }],
+      documentVersions: [],
+    })
+    createDocumentVersion.mockResolvedValue({
+      id: 'version-1',
+      documentId: 'doc-1',
+      label: 'Reviewed draft',
+      title: 'Backend document',
+      blocks: [{ id: 'para-1', type: 'paragraph', content: 'Current content.' }],
+      metadata: {},
+      createdAt: '2026-05-13T00:03:00.000Z',
+    })
+    restoreDocumentVersion.mockResolvedValue({
+      id: 'doc-1',
+      title: 'Backend document',
+      blocks: [{ id: 'para-1', type: 'paragraph', content: 'Restored content.' }],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:06:00.000Z',
+    })
+
+    await useWorkspaceStore.getState().createCurrentDocumentVersion('Reviewed draft')
+    expect(createDocumentVersion).toHaveBeenCalledWith('doc-1', 'Reviewed draft')
+    expect(useWorkspaceStore.getState().documentVersions[0].id).toBe('version-1')
+
+    await useWorkspaceStore.getState().restoreDocumentVersion('version-1')
+    expect(restoreDocumentVersion).toHaveBeenCalledWith('doc-1', 'version-1')
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('Restored content.')
+    expect(useWorkspaceStore.getState().activeVersionId).toBe('version-1')
+  })
+
+  it('records API errors and keeps an explicit local fallback status', async () => {
+    fetchDocument.mockRejectedValue(new Error('backend unavailable'))
+
+    await useWorkspaceStore.getState().loadDocument('doc-404')
+
+    expect(useWorkspaceStore.getState().documentErrorMessage).toBe('backend unavailable')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
   })
 })
