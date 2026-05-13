@@ -1,5 +1,9 @@
 import os
+import asyncio
+import json
 import unittest
+from types import SimpleNamespace
+from pydantic import ValidationError
 
 os.environ.setdefault("DASHSCOPE_API_KEY", "test-key")
 os.environ.setdefault("SECRET_KEY", "test-secret")
@@ -60,17 +64,34 @@ class WritingApiTest(unittest.TestCase):
         return TestClient(app)
 
     def test_analyze_returns_frontend_envelope_with_norm_retriever_context(self):
-        client = self._client(norm_retriever=FakeNormRetriever())
-        response = client.post("/v1/writing/analyze", json={
-            "text": "Smith (2020) reported similar findings.",
-            "mode": "citation",
-            "top_k": 5,
-            "theta": 0.6,
-            "refs": ["NRM-CIT-001", "INVALID-999"],
-        })
+        import api.writing as writing_module
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()["data"]
+        async def fake_bailian(prompt, session_id=None):
+            self.assertIn("Smith (2020)", prompt)
+            self.assertIn("[REF:NRM-CIT-001]", prompt)
+            return writing_module.BailianAppChunk(text="百炼分析：引用格式基本完整，但应补充来源页码。")
+
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(norm_retriever=FakeNormRetriever(), rag=None)))
+        original_call = writing_module.call_bailian_app_once
+        writing_module.call_bailian_app_once = fake_bailian
+        try:
+            response = asyncio.run(writing_module.analyze_writing(
+                writing_module.WritingAnalyzeRequest(
+                    text="Smith (2020) reported similar findings.",
+                    mode="citation",
+                    top_k=5,
+                    theta=0.6,
+                    refs=["NRM-CIT-001", "INVALID-999"],
+                ),
+                request,
+                _user_id="u1",
+            ))
+        finally:
+            writing_module.call_bailian_app_once = original_call
+
+        payload = json.loads(response.body)["data"]
+        self.assertEqual(payload["provider"], "bailian_app")
+        self.assertIn("百炼分析", payload["analysis"])
         self.assertEqual(payload["nodes"][0]["id"], "NRM-CIT-001")
         self.assertEqual(payload["nodes"][0]["node_id"], "NRM-CIT-001")
         self.assertEqual(payload["expanded"][0]["node_id"], "SUG-CIT-001")
@@ -82,11 +103,16 @@ class WritingApiTest(unittest.TestCase):
         self.assertGreaterEqual(len(payload["references"]), 1)
 
     def test_analyze_returns_fallback_when_retriever_missing(self):
-        client = self._client(norm_retriever=None)
-        response = client.post("/v1/writing/analyze", json={"text": "本文研究大语言模型在教育领域中的应用。", "mode": "norms"})
+        import api.writing as writing_module
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()["data"]
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(norm_retriever=None, rag=None)))
+        response = asyncio.run(writing_module.analyze_writing(
+            writing_module.WritingAnalyzeRequest(text="本文研究大语言模型在教育领域中的应用。", mode="norms"),
+            request,
+            _user_id="u1",
+        ))
+
+        payload = json.loads(response.body)["data"]
         self.assertIn("nodes", payload)
         self.assertIn("expanded_context", payload)
         self.assertIn("validation", payload)
@@ -94,16 +120,16 @@ class WritingApiTest(unittest.TestCase):
         self.assertGreaterEqual(len(payload["references"]), 1)
 
     def test_analyze_rejects_empty_text(self):
-        client = self._client()
-        response = client.post("/v1/writing/analyze", json={"text": "   "})
+        from api.writing import WritingAnalyzeRequest
 
-        self.assertEqual(response.status_code, 422)
+        with self.assertRaises(ValidationError):
+            WritingAnalyzeRequest(text="   ")
 
     def test_top_k_limit_is_enforced(self):
-        client = self._client(norm_retriever=FakeNormRetriever())
-        response = client.post("/v1/writing/analyze", json={"text": "sample", "top_k": 21})
+        from api.writing import WritingAnalyzeRequest
 
-        self.assertEqual(response.status_code, 422)
+        with self.assertRaises(ValidationError):
+            WritingAnalyzeRequest(text="sample", top_k=21)
 
 
 if __name__ == "__main__":

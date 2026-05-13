@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserStore } from '../../store/user'
 import { NotificationsPopover } from './NotificationsPopover'
+import { ProviderStatusIndicator } from './ProviderStatusIndicator'
 import { SearchBox } from './SearchBox'
 import { SettingsDialog } from './SettingsDialog'
 
@@ -24,6 +25,7 @@ export function GlobalTopBar() {
         />
       </div>
 
+      <ProviderStatusIndicator />
       <button
         className="hidden items-center gap-2 rounded-xl bg-scholar-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-scholar-primary-hover md:flex"
         onClick={() => navigate('/workbench')}
