@@ -1,5 +1,6 @@
 from dataclasses import asdict
 import os
+import pickle
 from pathlib import Path
 
 import networkx as nx
@@ -36,12 +37,22 @@ class KnowledgeGraph:
         self.g.add_edge(src, dst, rel=rel, **attrs)
 
     def save(self, path: str):
-        nx.write_gpickle(self.g, path)
+        if hasattr(nx, "write_gpickle"):
+            nx.write_gpickle(self.g, path)
+            return
+
+        with open(path, "wb") as handle:
+            pickle.dump(self.g, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, path: str):
         if not Path(path).exists():
             return
-        self.g = nx.read_gpickle(path)
+        if hasattr(nx, "read_gpickle"):
+            self.g = nx.read_gpickle(path)
+            return
+
+        with open(path, "rb") as handle:
+            self.g = pickle.load(handle)
 
     def get_graph(self) -> nx.DiGraph:
         return self.g

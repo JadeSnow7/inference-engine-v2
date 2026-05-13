@@ -48,6 +48,28 @@ def build_norm_retriever() -> NormNodeRetriever:
         return retriever
 
 
+def build_local_rag():
+    local_model_path = settings.local_embed_model_path
+    if not local_model_path:
+        print("[startup] Local GraphRAG disabled: MODELSCOPE_EMBED_MODEL_PATH or EMBED_MODEL must point to an existing local model path")
+        return None, None, DisabledRAGRetriever()
+
+    from sentence_transformers import SentenceTransformer
+
+    embedder = SentenceTransformer(local_model_path)
+    kg = KnowledgeGraph()
+    persist_path = Path(settings.GRAPH_PERSIST_PATH)
+    persist_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        kg.load(str(persist_path))
+        if kg.get_graph().number_of_nodes() == 0:
+            raise FileNotFoundError
+    except Exception:
+        kg = build_demo_graph(embedder)
+        kg.save(str(persist_path))
+    return embedder, kg, GraphRAGRetriever(kg, embedder)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -56,20 +78,7 @@ async def lifespan(app: FastAPI):
     rag = DisabledRAGRetriever()
 
     if settings.ENABLE_LOCAL_RAG:
-        from sentence_transformers import SentenceTransformer
-
-        embedder = SentenceTransformer(settings.EMBED_MODEL)
-        kg = KnowledgeGraph()
-        persist_path = Path(settings.GRAPH_PERSIST_PATH)
-        persist_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            kg.load(str(persist_path))
-            if kg.get_graph().number_of_nodes() == 0:
-                raise FileNotFoundError
-        except Exception:
-            kg = build_demo_graph()
-            kg.save(str(persist_path))
-        rag = GraphRAGRetriever(kg, embedder)
+        embedder, kg, rag = build_local_rag()
     elif settings.RAG_PROVIDER.lower() == "dashscope":
         rag = DashScopeKnowledgeRAGRetriever(
             api_key=settings.DASHSCOPE_API_KEY,

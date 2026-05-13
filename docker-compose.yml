@@ -12,6 +12,8 @@ services:
       HF_HOME: /app/data/.cache/huggingface
       HF_HUB_DISABLE_XET: "1"
       ENABLE_LOCAL_RAG: "0"
+      MODELSCOPE_EMBED_MODEL_PATH: ${MODELSCOPE_EMBED_MODEL_PATH:-/app/data/modelscope/BAAI/bge-small-zh-v1.5}
+      EMBED_MODEL: ${EMBED_MODEL:-/app/data/modelscope/BAAI/bge-small-zh-v1.5}
       RAG_PROVIDER: ${RAG_PROVIDER:-disabled}
       DASHSCOPE_KNOWLEDGE_BASE_ID: ${DASHSCOPE_KNOWLEDGE_BASE_ID:-}
       DASHSCOPE_RAG_MODEL: ${DASHSCOPE_RAG_MODEL:-qwen3.6-plus}
