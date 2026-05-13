@@ -9,6 +9,7 @@ from api.chat import router as chat_router
 from api.courses import router as courses_router
 from api.dashboard import router as dashboard_router
 from api.documents import router as documents_router
+from api.graph import router as graph_router
 from api.health import router as health_router
 from api.library import router as library_router
 from api.responses import register_error_handlers
@@ -95,6 +96,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(courses_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
+app.include_router(graph_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")

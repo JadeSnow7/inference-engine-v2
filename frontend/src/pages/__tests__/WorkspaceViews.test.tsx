@@ -7,11 +7,21 @@ import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 
 const fetchDashboardSummary = vi.hoisted(() => vi.fn())
+const fetchEvidence = vi.hoisted(() => vi.fn())
+const fetchGraph = vi.hoisted(() => vi.fn())
 const fetchResearchSpaces = vi.hoisted(() => vi.fn())
 const openResearchSpace = vi.hoisted(() => vi.fn())
 
 vi.mock('../../api/dashboard', () => ({
   fetchDashboardSummary: (...args: unknown[]) => fetchDashboardSummary(...args),
+}))
+
+vi.mock('../../api/graph', () => ({
+  fetchGraph: (...args: unknown[]) => fetchGraph(...args),
+}))
+
+vi.mock('../../api/library', () => ({
+  fetchEvidence: (...args: unknown[]) => fetchEvidence(...args),
 }))
 
 vi.mock('../../api/courses', () => ({
@@ -62,6 +72,8 @@ describe('workspace views', () => {
   beforeEach(() => {
     installMemoryStorage()
     fetchDashboardSummary.mockReset()
+    fetchEvidence.mockReset()
+    fetchGraph.mockReset()
     fetchResearchSpaces.mockReset()
     openResearchSpace.mockReset()
     fetchDashboardSummary.mockResolvedValue({
@@ -95,6 +107,18 @@ describe('workspace views', () => {
           sourceType: 'lecture',
         },
       }],
+    })
+    fetchEvidence.mockResolvedValue({ items: [] })
+    fetchGraph.mockResolvedValue({
+      nodes: [{
+        id: 'graph-api-topic',
+        label: 'API Graph Topic',
+        type: 'concept',
+        description: 'Graph data loaded from API.',
+        referenceIds: [],
+        position: { x: 80, y: 80 },
+      }],
+      edges: [],
     })
     useUserStore.setState({ token: 'token-1', userId: 'alex@hust.edu.cn' })
     useWorkspaceStore.getState().resetWorkspace()
@@ -133,13 +157,14 @@ describe('workspace views', () => {
     expect(screen.getByRole('button', { name: /进入研究工作台/ })).toBeInTheDocument()
   })
 
-  it('keeps discovery inside the workspace page model', () => {
+  it('keeps discovery inside the workspace page model', async () => {
     window.history.pushState({}, '', '/graph')
 
     render(<App />)
 
     expect(screen.getByRole('heading', { name: '知识图谱' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('搜索概念、学者或文献节点...')).toBeInTheDocument()
-    expect(screen.getByTestId('knowledge-flow')).toBeInTheDocument()
+    expect(await screen.findByTestId('knowledge-flow')).toBeInTheDocument()
+    expect(screen.getAllByText('API Graph Topic').length).toBeGreaterThan(0)
   })
 })

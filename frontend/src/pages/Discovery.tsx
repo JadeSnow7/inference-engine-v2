@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ChevronRight, Network, Search, X } from 'lucide-react'
 import {
   ReactFlow,
@@ -10,23 +10,9 @@ import {
 import type { Node, Edge, NodeChange, EdgeChange } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, Tabs } from '../components/ui'
+import { fetchGraph, type GraphEdge, type GraphNode } from '../api/graph'
+import { Button, Card, StateBlock, Tabs } from '../components/ui'
 import { useLayoutStore } from '../store/layout'
-
-const initialNodes: Node[] = [
-  { id: '1', position: { x: 250, y: 100 }, data: { label: 'Generative AI' }, type: 'input', className: 'min-w-[150px] shadow-sm border-2 border-scholar-discovery/50 bg-white rounded-lg text-sm font-semibold p-3 text-center text-scholar-text-primary' },
-  { id: '2', position: { x: 100, y: 250 }, data: { label: 'Large Language Models (LLMs)' }, className: 'min-w-[150px] shadow-md border-2 border-scholar-discovery bg-purple-50 rounded-lg text-sm font-bold p-3 text-center text-scholar-discovery' },
-  { id: '3', position: { x: 400, y: 250 }, data: { label: 'Diffusion Models' }, className: 'min-w-[150px] shadow-sm border border-scholar-border bg-white rounded-lg text-sm font-medium p-3 text-center text-scholar-text-primary' },
-  { id: '4', position: { x: -50, y: 400 }, data: { label: 'Zero-shot Learning' }, className: 'min-w-[150px] shadow-sm border border-scholar-border bg-white rounded-lg text-sm font-medium p-3 text-center text-scholar-text-secondary' },
-  { id: '5', position: { x: 250, y: 400 }, data: { label: 'Transformer Architecture' }, className: 'min-w-[150px] shadow-sm border border-scholar-border bg-white rounded-lg text-sm font-medium p-3 text-center text-scholar-text-secondary' },
-]
-
-const initialEdges: Edge[] = [
-  { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: '#7b2cbf', strokeWidth: 2 } },
-  { id: 'e1-3', source: '1', target: '3', style: { stroke: '#dee0e3', strokeWidth: 1.5 } },
-  { id: 'e2-4', source: '2', target: '4', label: 'emergent ability', labelStyle: { fill: '#646a73', fontSize: 10 }, style: { stroke: '#dee0e3', strokeWidth: 1.5 } },
-  { id: 'e2-5', source: '2', target: '5', label: 'based on', labelStyle: { fill: '#646a73', fontSize: 10 }, style: { stroke: '#dee0e3', strokeWidth: 1.5 } },
-]
 
 const graphTabs = [
   { id: 'topic', label: '主题图谱' },
@@ -34,16 +20,89 @@ const graphTabs = [
   { id: 'gap', label: '研究空白' },
 ]
 
+interface FlowNodeData extends Record<string, unknown> {
+  label: string
+  description: string
+  nodeType: string
+  referenceIds: string[]
+}
+
+function nodeClassName(type: string): string {
+  const base = 'min-w-[150px] shadow-sm rounded-lg text-sm p-3 text-center'
+  if (type === 'paper') return `${base} border-2 border-emerald-400 bg-emerald-50 font-semibold text-emerald-700`
+  if (type === 'gap') return `${base} border-2 border-rose-300 bg-rose-50 font-semibold text-rose-700`
+  if (type === 'method') return `${base} border border-indigo-200 bg-indigo-50 font-medium text-indigo-700`
+  return `${base} border-2 border-scholar-discovery/50 bg-white font-semibold text-scholar-text-primary`
+}
+
+function toFlowNode(node: GraphNode): Node<FlowNodeData> {
+  return {
+    id: node.id,
+    position: node.position,
+    data: {
+      label: node.label,
+      description: node.description,
+      nodeType: node.type,
+      referenceIds: node.referenceIds,
+    },
+    className: nodeClassName(node.type),
+  }
+}
+
+function toFlowEdge(edge: GraphEdge): Edge {
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    label: edge.label || undefined,
+    labelStyle: { fill: '#646a73', fontSize: 10 },
+    style: { stroke: '#dee0e3', strokeWidth: 1.5 },
+  }
+}
+
 export default function Discovery() {
   const navigate = useNavigate()
   const setWorkbenchContext = useLayoutStore(state => state.setWorkbenchContext)
-  const [nodes, setNodes] = useState<Node[]>(initialNodes)
-  const [edges, setEdges] = useState<Edge[]>(initialEdges)
+  const [nodes, setNodes] = useState<Node<FlowNodeData>[]>([])
+  const [edges, setEdges] = useState<Edge[]>([])
   const [activeTab, setActiveTab] = useState('topic')
-  const [selectedNode, setSelectedNode] = useState<Node | null>(initialNodes[1])
+  const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    fetchGraph({ view: activeTab })
+      .then(response => {
+        if (!isCurrent) return
+        const nextNodes = response.nodes.map(toFlowNode)
+        setNodes(nextNodes)
+        setEdges(response.edges.map(toFlowEdge))
+        setSelectedNode(nextNodes[0] ?? null)
+      })
+      .catch(error => {
+        if (!isCurrent) return
+        setNodes([])
+        setEdges([])
+        setSelectedNode(null)
+        setErrorMessage(error instanceof Error ? error.message : '知识图谱暂时不可用')
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [activeTab])
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<Node>[]) => setNodes(nds => applyNodeChanges(changes, nds)),
+    (changes: NodeChange<Node<FlowNodeData>>[]) => setNodes(nds => applyNodeChanges(changes, nds)),
     [],
   )
   const onEdgesChange = useCallback(
@@ -90,18 +149,35 @@ export default function Discovery() {
               </div>
             </div>
             <div className="min-h-0 flex-1 bg-scholar-bg-canvas">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onNodeClick={(_, node) => setSelectedNode(node)}
-                fitView
-                attributionPosition="bottom-left"
-              >
-                <Background color="#dee0e3" gap={20} size={1} />
-                <Controls position="bottom-right" className="shadow-sm border-scholar-border" />
-              </ReactFlow>
+              {isLoading && (
+                <div className="flex h-full items-center justify-center p-6">
+                  <StateBlock title="正在加载知识图谱..." icon={<Network size={22} />} />
+                </div>
+              )}
+              {!isLoading && errorMessage && (
+                <div className="flex h-full items-center justify-center p-6">
+                  <StateBlock title="知识图谱加载失败" description={errorMessage} icon={<Network size={22} />} />
+                </div>
+              )}
+              {!isLoading && !errorMessage && nodes.length === 0 && (
+                <div className="flex h-full items-center justify-center p-6">
+                  <StateBlock title="暂无图谱数据" description="启用本地 RAG 图谱或打开研究空间后，这里会展示概念、文献和研究空白关系。" icon={<Network size={22} />} />
+                </div>
+              )}
+              {!isLoading && !errorMessage && nodes.length > 0 && (
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onNodeClick={(_, node) => setSelectedNode(node)}
+                  fitView
+                  attributionPosition="bottom-left"
+                >
+                  <Background color="#dee0e3" gap={20} size={1} />
+                  <Controls position="bottom-right" className="shadow-sm border-scholar-border" />
+                </ReactFlow>
+              )}
             </div>
           </div>
         </Card>
@@ -111,7 +187,7 @@ export default function Discovery() {
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-scholar-discovery">Concept Node</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-scholar-discovery">{selectedNode.data.nodeType} Node</span>
                   <h2 className="mt-1 text-lg font-bold leading-tight text-scholar-text-primary">{selectedNode.data.label as string}</h2>
                 </div>
                 <button type="button" onClick={() => setSelectedNode(null)} className="rounded-lg p-1 text-scholar-text-weak hover:bg-gray-100" aria-label="关闭节点详情">
@@ -120,18 +196,27 @@ export default function Discovery() {
               </div>
 
               <section>
-                <h3 className="text-sm font-semibold text-scholar-text-primary">Definition</h3>
+                <h3 className="text-sm font-semibold text-scholar-text-primary">节点说明</h3>
                 <p className="mt-2 text-sm leading-6 text-scholar-text-secondary">
-                  Foundation model concepts and education-domain evidence are linked here so writing, literature review and graph exploration share the same context.
+                  {selectedNode.data.description || '该节点暂无说明，后续会随 RAG 图谱或研究空间材料补齐。'}
                 </p>
               </section>
 
               <section>
-                <h3 className="text-sm font-semibold text-scholar-text-primary">Key Literature</h3>
+                <h3 className="text-sm font-semibold text-scholar-text-primary">关联证据</h3>
                 <div className="mt-3 space-y-2">
-                  <LiteratureCard name="Attention Is All You Need" author="Vaswani et al." year="2017" />
-                  <LiteratureCard name="Language Models are Few-Shot Learners" author="Brown et al." year="2020" />
-                  <LiteratureCard name="Scaling Laws for Neural Language Models" author="Kaplan et al." year="2020" />
+                  {selectedNode.data.referenceIds.length > 0 ? (
+                    selectedNode.data.referenceIds.map(referenceId => (
+                      <div key={referenceId} className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3">
+                        <h4 className="text-sm font-semibold leading-tight text-scholar-text-primary">{referenceId}</h4>
+                        <p className="mt-1 text-xs font-medium text-scholar-text-weak">来自图谱节点引用</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3 text-xs font-medium text-scholar-text-weak">
+                      暂无直接关联引用。
+                    </p>
+                  )}
                 </div>
               </section>
 
@@ -145,15 +230,6 @@ export default function Discovery() {
           )}
         </Card>
       </div>
-    </div>
-  )
-}
-
-function LiteratureCard({ name, author, year }: { name: string; author: string; year: string }) {
-  return (
-    <div className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3">
-      <h4 className="text-sm font-semibold leading-tight text-scholar-text-primary">{name}</h4>
-      <p className="mt-1 text-xs font-medium text-scholar-text-weak">{author} · {year}</p>
     </div>
   )
 }
