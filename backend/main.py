@@ -12,8 +12,10 @@ from api.documents import router as documents_router
 from api.graph import router as graph_router
 from api.health import router as health_router
 from api.library import router as library_router
+from api.notifications import router as notifications_router
 from api.responses import register_error_handlers
 from api.search import router as search_router
+from api.settings import router as settings_router
 from api.users import router as users_router
 from api.writing import router as writing_router
 from config import settings
@@ -23,7 +25,16 @@ from rag.embed_adapter import DashScopeEmbedder
 from rag.graph import KnowledgeGraph, build_demo_graph
 from rag.norm_retriever import NormNodeRetriever
 from rag.retriever import DisabledRAGRetriever, GraphRAGRetriever
-from store.redis_store import RedisConversationStore, RedisCourseStore, RedisDocumentStore, RedisEvidenceStore, RedisProfileStore, UserStore
+from store.redis_store import (
+    RedisConversationStore,
+    RedisCourseStore,
+    RedisDocumentStore,
+    RedisEvidenceStore,
+    RedisNotificationStore,
+    RedisProfileStore,
+    RedisSettingsStore,
+    UserStore,
+)
 
 
 def build_norm_retriever() -> NormNodeRetriever:
@@ -76,7 +87,9 @@ async def lifespan(app: FastAPI):
     app.state.course_store = RedisCourseStore(redis_client)
     app.state.document_store = RedisDocumentStore(redis_client)
     app.state.evidence_store = RedisEvidenceStore(redis_client)
+    app.state.notification_store = RedisNotificationStore(redis_client)
     app.state.profile_store = RedisProfileStore(redis_client)
+    app.state.settings_store = RedisSettingsStore(redis_client)
     app.state.user_store = UserStore(redis_client)
     try:
         yield
@@ -99,7 +112,9 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")
 

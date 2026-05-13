@@ -374,6 +374,117 @@ class RedisEvidenceStore:
 
 
 # ---------------------------------------------------------------------------
+# RedisNotificationStore
+# ---------------------------------------------------------------------------
+
+DEFAULT_NOTIFICATIONS: list[dict[str, Any]] = [
+    {
+        "id": "norm-reminder",
+        "title": "规范校验提醒",
+        "body": "有 3 处引用格式建议需要处理。",
+        "kind": "warning",
+        "read": False,
+        "createdAt": "2026-05-13T00:00:00Z",
+    },
+    {
+        "id": "graph-updated",
+        "title": "知识图谱已更新",
+        "body": "课程文献综述新增了概念和证据节点。",
+        "kind": "info",
+        "read": False,
+        "createdAt": "2026-05-13T00:00:00Z",
+    },
+]
+
+
+class RedisNotificationStore:
+    """Stores user-scoped notification state."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _notifications_key(user_id: str) -> str:
+        return f"notifications:{user_id}"
+
+    async def list_notifications(self, user_id: str) -> list[dict]:
+        raw = await self.client.get(self._notifications_key(user_id))
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [item for item in parsed if isinstance(item, dict)]
+            except Exception:
+                pass
+        seeded = [json.loads(json.dumps(item, ensure_ascii=False)) for item in DEFAULT_NOTIFICATIONS]
+        await self.save_notifications(user_id, seeded)
+        return seeded
+
+    async def save_notifications(self, user_id: str, items: list[dict]) -> None:
+        await self.client.set(
+            self._notifications_key(user_id),
+            json.dumps(items, ensure_ascii=False),
+        )
+
+    async def mark_read(self, user_id: str, notification_id: str) -> dict | None:
+        items = await self.list_notifications(user_id)
+        matched = None
+        for item in items:
+            if item.get("id") == notification_id:
+                item["read"] = True
+                matched = item
+                break
+        if matched is None:
+            return None
+        await self.save_notifications(user_id, items)
+        return matched
+
+
+# ---------------------------------------------------------------------------
+# RedisSettingsStore
+# ---------------------------------------------------------------------------
+
+DEFAULT_SETTINGS: dict[str, Any] = {
+    "workspaceDensity": "comfortable",
+    "autoSave": True,
+    "notificationsEnabled": True,
+    "citationStyle": "GB/T 7714",
+}
+
+
+class RedisSettingsStore:
+    """Stores user workspace preferences."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _settings_key(user_id: str) -> str:
+        return f"settings:{user_id}"
+
+    async def get_settings(self, user_id: str) -> dict:
+        raw = await self.client.get(self._settings_key(user_id))
+        if not raw:
+            return dict(DEFAULT_SETTINGS)
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return dict(DEFAULT_SETTINGS)
+        if not isinstance(parsed, dict):
+            return dict(DEFAULT_SETTINGS)
+        return {**DEFAULT_SETTINGS, **parsed}
+
+    async def update_settings(self, user_id: str, updates: dict[str, Any]) -> dict:
+        current = await self.get_settings(user_id)
+        next_settings = {**current, **{key: value for key, value in updates.items() if value is not None}}
+        await self.client.set(
+            self._settings_key(user_id),
+            json.dumps(next_settings, ensure_ascii=False),
+        )
+        return next_settings
+
+
+# ---------------------------------------------------------------------------
 # UserStore
 # ---------------------------------------------------------------------------
 
