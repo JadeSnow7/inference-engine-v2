@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from api.auth import get_current_user_id
 from api.responses import ok
+from core.bailian_app import BailianAppChunk, call_bailian_app_once
 
 router = APIRouter()
 
@@ -169,6 +170,22 @@ def _expanded_context(items: list[dict], references: list[dict]) -> list[dict]:
     ]
 
 
+def _build_bailian_analysis_prompt(text: str, mode: str, context: str) -> str:
+    mode_labels = {
+        "norms": "学术规范校验",
+        "citation": "引用增强分析",
+        "structure": "结构连贯性分析",
+    }
+    context_block = context or "暂无可用规范节点上下文。"
+    return (
+        f"任务：{mode_labels.get(mode, mode)}。\n"
+        "请基于给定规范上下文分析论文片段，输出简洁、可执行的反馈；"
+        "如果引用或论证依据不足，请明确指出需要补充的位置。\n\n"
+        f"规范上下文：\n{context_block}\n\n"
+        f"论文片段：\n{text}"
+    )
+
+
 @router.post("/writing/analyze")
 async def analyze_writing(
     req: WritingAnalyzeRequest,
@@ -210,6 +227,18 @@ async def analyze_writing(
     if not references:
         references = _fallback_references(req.mode)
 
+    provider = "fallback"
+    analysis = ""
+    try:
+        chunk = await call_bailian_app_once(_build_bailian_analysis_prompt(text, req.mode, context), session_id=req.session_id)
+        analysis = chunk.text.strip()
+        if chunk.references:
+            references = chunk.references + references
+        if analysis:
+            provider = "bailian_app"
+    except Exception:
+        analysis = "已基于本地规范节点和规则校验生成结构化分析。"
+
     validation = _validation(text, req.mode)
     if norm_retriever is not None and _has_items(norm_retriever):
         for ref_id in req.refs or []:
@@ -228,4 +257,6 @@ async def analyze_writing(
         "references": references,
         "context": context,
         "expanded": expanded,
+        "analysis": analysis,
+        "provider": provider,
     })

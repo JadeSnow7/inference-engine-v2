@@ -86,7 +86,7 @@ describe('notifications and settings controls', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }))
 
     expect(await screen.findByRole('dialog', { name: '工作区设置' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('工作区密度'), { target: { value: 'compact' } })
+    fireEvent.change(await screen.findByLabelText('工作区密度'), { target: { value: 'compact' } })
     fireEvent.click(screen.getByLabelText('通知提醒'))
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
 

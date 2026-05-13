@@ -54,6 +54,19 @@ class SettingsCompatibilityTest(unittest.TestCase):
 
         self.assertEqual(settings.local_embed_model_path, "")
 
+    def test_ai_provider_preference_defaults_to_bailian_first(self) -> None:
+        from config import Settings
+
+        env = {
+            "DASHSCOPE_API_KEY": "test-key",
+            "JWT_SECRET": "jwt-secret",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = Settings()
+
+        self.assertEqual(settings.AI_PROVIDER_PREFERENCE, "bailian_first")
+
     def test_local_rag_startup_uses_modelscope_path_once(self) -> None:
         os.environ.setdefault("DASHSCOPE_API_KEY", "test-key")
         os.environ.setdefault("SECRET_KEY", "test-secret")

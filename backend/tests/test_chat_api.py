@@ -1,4 +1,6 @@
 import os
+import asyncio
+import json
 import unittest
 from types import SimpleNamespace
 from typing import Optional
@@ -13,6 +15,16 @@ from api.auth import get_current_user_id
 from api.chat import router as chat_router
 from api.responses import register_error_handlers
 from core.events import EventType, SSEEvent, fmt
+
+
+def collect_streaming_response(response):
+    async def _collect():
+        chunks = []
+        async for chunk in response.body_iterator:
+            chunks.append(chunk)
+        return chunks
+
+    return asyncio.run(_collect())
 
 
 class FakeConversationManager:
@@ -68,14 +80,14 @@ class ChatApiTest(unittest.TestCase):
             yield fmt(SSEEvent(type=EventType.DONE))
 
         client, conv = self._make_app()
-        original_loop = chat_module.main_loop
-        chat_module.main_loop = fake_loop
+        original_loop = chat_module.bailian_first_loop
+        chat_module.bailian_first_loop = fake_loop
         try:
-            response = client.post("/api/chat", json={"message": "帮我写综述"})
+            response = asyncio.run(chat_module.chat(chat_module.ChatRequest(message="帮我写综述"), SimpleNamespace(app=client.app), user_id="u1"))
+            collect_streaming_response(response)
         finally:
-            chat_module.main_loop = original_loop
+            chat_module.bailian_first_loop = original_loop
 
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["x-session-id"], "sess-new")
         self.assertEqual(conv.ensure_calls, [("u1", None, "帮我写综述")])
 
@@ -86,16 +98,49 @@ class ChatApiTest(unittest.TestCase):
             yield fmt(SSEEvent(type=EventType.DONE))
 
         client, conv = self._make_app()
-        original_loop = chat_module.main_loop
-        chat_module.main_loop = fake_loop
+        original_loop = chat_module.bailian_first_loop
+        chat_module.bailian_first_loop = fake_loop
         try:
-            response = client.post("/api/chat", json={"message": "继续", "session_id": "sess-old"})
+            response = asyncio.run(chat_module.chat(chat_module.ChatRequest(message="继续", session_id="sess-old"), SimpleNamespace(app=client.app), user_id="u1"))
+            collect_streaming_response(response)
         finally:
-            chat_module.main_loop = original_loop
+            chat_module.bailian_first_loop = original_loop
 
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["x-session-id"], "sess-old")
         self.assertEqual(conv.ensure_calls, [("u1", "sess-old", "继续")])
+
+    def test_chat_defaults_to_bailian_first_loop_for_normal_requests(self) -> None:
+        import api.chat as chat_module
+
+        calls = []
+
+        async def fake_bailian_first_loop(*args, **_kwargs):
+            calls.append(args)
+            yield fmt(SSEEvent(type=EventType.STAGE, stage="百炼应用处理中"))
+            yield fmt(SSEEvent(type=EventType.DONE))
+
+        async def forbidden_main_loop(*_args, **_kwargs):
+            raise AssertionError("main_loop should be called only as bailian_first fallback")
+            yield  # pragma: no cover
+
+        client, conv = self._make_app()
+        original_bailian_first_loop = chat_module.bailian_first_loop
+        original_main_loop = chat_module.main_loop
+        chat_module.bailian_first_loop = fake_bailian_first_loop
+        chat_module.main_loop = forbidden_main_loop
+        try:
+            response = asyncio.run(chat_module.chat(chat_module.ChatRequest(message="帮我改写这一段", session_id="sess-1"), SimpleNamespace(app=client.app), user_id="u1"))
+            collect_streaming_response(response)
+        finally:
+            chat_module.bailian_first_loop = original_bailian_first_loop
+            chat_module.main_loop = original_main_loop
+
+        self.assertEqual(response.headers["x-session-id"], "sess-1")
+        self.assertEqual(conv.ensure_calls, [("u1", "sess-1", "帮我改写这一段")])
+        self.assertEqual(calls[0][0:3], ("u1", "sess-1", "帮我改写这一段"))
+        self.assertIs(calls[0][3], client.app.state.conv_manager)
+        self.assertIs(calls[0][4], client.app.state.profile_store)
+        self.assertIs(calls[0][5], client.app.state.rag)
 
     def test_chat_norms_mode_routes_to_norms_loop(self) -> None:
         import api.chat as chat_module
@@ -117,31 +162,33 @@ class ChatApiTest(unittest.TestCase):
         chat_module.norms_loop = fake_norms_loop
         chat_module.main_loop = forbidden_main_loop
         try:
-            response = client.post("/api/chat", json={"message": "检查论文格式规范", "session_id": "sess-1", "mode": "norms"})
+            response = asyncio.run(chat_module.chat(chat_module.ChatRequest(message="检查论文格式规范", session_id="sess-1", mode="norms"), SimpleNamespace(app=client.app), user_id="u1"))
+            collect_streaming_response(response)
         finally:
             chat_module.norms_loop = original_norms_loop
             chat_module.main_loop = original_main_loop
 
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["x-session-id"], "sess-1")
         self.assertEqual(conv.ensure_calls, [("u1", "sess-1", "检查论文格式规范")])
         self.assertEqual(calls[0][0:3], ("u1", "sess-1", "检查论文格式规范"))
         self.assertIs(calls[0][5], client.app.state.norm_retriever)
 
     def test_list_sessions_returns_enveloped_data(self) -> None:
+        import api.chat as chat_module
+
         client, conv = self._make_app()
 
-        response = client.get("/api/sessions?limit=10&offset=5")
+        response = asyncio.run(chat_module.list_sessions(SimpleNamespace(app=client.app), limit=10, offset=5, user_id="u1"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["data"]["total"], 1)
+        self.assertEqual(json.loads(response.body)["data"]["total"], 1)
         self.assertEqual(conv.list_calls, [("u1", 10, 5)])
 
     def test_delete_session_returns_deleted_flag(self) -> None:
+        import api.chat as chat_module
+
         client, conv = self._make_app()
 
-        response = client.delete("/api/sessions/sess-new")
+        response = asyncio.run(chat_module.delete_session("sess-new", SimpleNamespace(app=client.app), user_id="u1"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"ok": True, "data": {"deleted": True}})
+        self.assertEqual(json.loads(response.body), {"ok": True, "data": {"deleted": True}})
         self.assertEqual(conv.delete_calls, [("u1", "sess-new")])

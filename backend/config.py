@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="", validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET")) if Field else ""
     REDIS_URL: str = "redis://localhost:6379/0"
     MAX_HISTORY_TOKENS: int = 6000
+    AI_PROVIDER_PREFERENCE: str = "bailian_first"
     RAG_PROVIDER: str = "disabled"
     DASHSCOPE_KNOWLEDGE_BASE_ID: str = ""
     DASHSCOPE_RAG_MODEL: str = "qwen3.6-plus"
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
                 raise KeyError("SECRET_KEY")
             self.REDIS_URL = os.getenv("REDIS_URL", self.REDIS_URL)
             self.MAX_HISTORY_TOKENS = int(os.getenv("MAX_HISTORY_TOKENS", str(self.MAX_HISTORY_TOKENS)))
+            self.AI_PROVIDER_PREFERENCE = os.getenv("AI_PROVIDER_PREFERENCE", self.AI_PROVIDER_PREFERENCE)
             self.RAG_PROVIDER = os.getenv("RAG_PROVIDER", self.RAG_PROVIDER)
             self.DASHSCOPE_KNOWLEDGE_BASE_ID = os.getenv("DASHSCOPE_KNOWLEDGE_BASE_ID", self.DASHSCOPE_KNOWLEDGE_BASE_ID)
             self.DASHSCOPE_RAG_MODEL = os.getenv("DASHSCOPE_RAG_MODEL", self.DASHSCOPE_RAG_MODEL)
@@ -70,6 +72,16 @@ class Settings(BaseSettings):
             if path.exists():
                 return str(path)
         return ""
+
+    @property
+    def bailian_app_configured(self) -> bool:
+        return bool(self.ENABLE_BAILIAN_APP and self.DASHSCOPE_API_KEY and self.DASHSCOPE_APP_ID)
+
+    @property
+    def active_ai_provider(self) -> str:
+        if self.AI_PROVIDER_PREFERENCE == "bailian_first" and self.bailian_app_configured:
+            return "bailian_app"
+        return "standard_llm"
 
 
 settings = Settings()

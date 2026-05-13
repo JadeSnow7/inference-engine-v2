@@ -21,6 +21,8 @@ async def config_status(request: Request):
                 "dashscope": "configured" if bool(settings.DASHSCOPE_API_KEY) else "missing",
                 "model": settings.MODEL_NAME,
             },
+            "active_provider": settings.active_ai_provider,
+            "provider_preference": settings.AI_PROVIDER_PREFERENCE,
             "rag": rag_health,
             "bailian_app": {
                 "enabled": settings.ENABLE_BAILIAN_APP,

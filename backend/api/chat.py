@@ -5,6 +5,7 @@ from typing import Optional
 
 from api.auth import get_current_user_id
 from api.responses import ok
+from core.bailian_first import bailian_first_loop
 from core.loop import main_loop
 from core.norms import norms_loop
 from profile.models import UserProfile, from_survey
@@ -39,7 +40,7 @@ async def chat(req: ChatRequest, request: Request, user_id: str = Depends(get_cu
             getattr(app_state, "norm_retriever", None),
         )
         if (req.mode or "").strip().lower() == "norms"
-        else main_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag)
+        else bailian_first_loop(user_id, session_id, req.message, app_state.conv_manager, app_state.profile_store, app_state.rag)
     )
     return StreamingResponse(
         stream,
