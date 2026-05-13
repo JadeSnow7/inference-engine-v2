@@ -6,6 +6,19 @@ import App from '../../App'
 import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 
+const fetchDashboardSummary = vi.hoisted(() => vi.fn())
+const fetchResearchSpaces = vi.hoisted(() => vi.fn())
+const openResearchSpace = vi.hoisted(() => vi.fn())
+
+vi.mock('../../api/dashboard', () => ({
+  fetchDashboardSummary: (...args: unknown[]) => fetchDashboardSummary(...args),
+}))
+
+vi.mock('../../api/courses', () => ({
+  fetchResearchSpaces: (...args: unknown[]) => fetchResearchSpaces(...args),
+  openResearchSpace: (...args: unknown[]) => openResearchSpace(...args),
+}))
+
 vi.mock('@xyflow/react', () => ({
   ReactFlow: ({
     nodes,
@@ -48,17 +61,52 @@ function installMemoryStorage() {
 describe('workspace views', () => {
   beforeEach(() => {
     installMemoryStorage()
+    fetchDashboardSummary.mockReset()
+    fetchResearchSpaces.mockReset()
+    openResearchSpace.mockReset()
+    fetchDashboardSummary.mockResolvedValue({
+      metrics: {
+        documentBlocks: 6,
+        evidenceSources: 5,
+        graphUpdates: 12,
+        normReminders: 3,
+      },
+      focus: {
+        title: '大语言模型在教育领域的应用综述',
+        summary: '当前重点是补齐规范证据。',
+        tags: ['进行中', '教育技术', '论文综述'],
+      },
+      tasks: [{ id: 'task-1', title: '补全文献综述中的教育场景证据', meta: '工作台 · 2 个待处理修改', target: '/workbench' }],
+      recentCourses: [{ id: 'course-1', title: 'Research Methods in Education', meta: '研究主题：LLM 课堂反馈 · 18 篇文献' }],
+      recentDocuments: [{ id: 'doc-1', title: 'LLM-in-Education-review.md', meta: '综述草稿 · 今天 09:24' }],
+    })
+    fetchResearchSpaces.mockResolvedValue({
+      items: [{
+        id: 'space-1',
+        title: 'Principles of Microeconomics',
+        teacher: 'Prof. John Doe',
+        topic: '大语言模型在教育领域的应用综述',
+        literatureCount: 24,
+        graphUpdates: 5,
+        status: '正在撰写文献综述',
+        material: {
+          title: 'Theory of the Firm',
+          type: 'outline',
+          sourceType: 'lecture',
+        },
+      }],
+    })
     useUserStore.setState({ token: 'token-1', userId: 'alex@hust.edu.cn' })
     useWorkspaceStore.getState().resetWorkspace()
   })
 
-  it('renders the dashboard as a research workspace home', () => {
+  it('renders the dashboard as a research workspace home', async () => {
     window.history.pushState({}, '', '/')
 
     render(<App />)
 
     expect(screen.getByRole('heading', { name: '研究工作台总览' })).toBeInTheDocument()
-    expect(screen.getByText('当前研究焦点')).toBeInTheDocument()
+    expect(await screen.findByText('当前研究焦点')).toBeInTheDocument()
     expect(screen.getByText('AI 建议')).toBeInTheDocument()
     expect(screen.queryByText(/Welcome Back/i)).not.toBeInTheDocument()
   })
@@ -75,13 +123,13 @@ describe('workspace views', () => {
     expect(screen.getByText('证据库')).toBeInTheDocument()
   })
 
-  it('renders courses as research-space entry cards', () => {
+  it('renders courses as research-space entry cards', async () => {
     window.history.pushState({}, '', '/courses')
 
     render(<App />)
 
     expect(screen.getByRole('heading', { name: '研究空间' })).toBeInTheDocument()
-    expect(screen.getByText('大语言模型在教育领域的应用综述')).toBeInTheDocument()
+    expect(await screen.findByText('大语言模型在教育领域的应用综述')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /进入研究工作台/ })).toBeInTheDocument()
   })
 
