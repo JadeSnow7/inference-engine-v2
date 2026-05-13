@@ -1,65 +1,52 @@
 import { ArrowRight, BookOpen, ChevronRight, FileText, Network, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchResearchSpaces, openResearchSpace, type ResearchSpace } from '../api/courses'
 import { Badge, Button, Card } from '../components/ui'
 import { useLayoutStore } from '../store/layout'
-
-interface ResearchSpace {
-  title: string
-  teacher: string
-  topic: string
-  literatureCount: number
-  graphUpdates: number
-  status: string
-  materialTitle: string
-  materialType: 'outline' | 'review' | 'gap'
-}
-
-const spaces: ResearchSpace[] = [
-  {
-    title: 'Principles of Microeconomics',
-    teacher: 'Prof. John Doe',
-    topic: '大语言模型在教育领域的应用综述',
-    literatureCount: 24,
-    graphUpdates: 5,
-    status: '正在撰写文献综述',
-    materialTitle: 'Theory of the Firm',
-    materialType: 'outline',
-  },
-  {
-    title: 'Research Methods in Education',
-    teacher: 'Dr. Lin Chen',
-    topic: 'AI 学习反馈工具的课堂成效研究',
-    literatureCount: 18,
-    graphUpdates: 3,
-    status: '等待规范校验',
-    materialTitle: 'A Survey on AI-Powered Educational Tools',
-    materialType: 'review',
-  },
-  {
-    title: 'Academic Writing',
-    teacher: 'Writing Center',
-    topic: '本科论文结构与引用规范',
-    literatureCount: 9,
-    graphUpdates: 2,
-    status: '需要补充引用证据',
-    materialTitle: 'HUST Undergraduate Thesis Norms',
-    materialType: 'gap',
-  },
-]
 
 export default function Courses() {
   const navigate = useNavigate()
   const setWorkbenchContext = useLayoutStore(state => state.setWorkbenchContext)
+  const [spaces, setSpaces] = useState<ResearchSpace[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [openingSpaceId, setOpeningSpaceId] = useState<string | null>(null)
 
-  const handleTakeToWorkbench = (space: ResearchSpace) => {
-    setWorkbenchContext({
-      sourceTitle: space.materialTitle,
-      actionType: space.materialType,
-      courseTitle: space.title,
-      sourceType: space.materialType === 'review' ? 'paper' : 'lecture',
-      createdAt: new Date().toISOString(),
-    })
-    navigate('/workbench')
+  useEffect(() => {
+    let active = true
+    setIsLoading(true)
+    setErrorMessage('')
+
+    fetchResearchSpaces()
+      .then(response => {
+        if (!active) return
+        setSpaces(response.items)
+        setIsLoading(false)
+      })
+      .catch(error => {
+        if (!active) return
+        setErrorMessage(error instanceof Error ? error.message : '研究空间服务暂时不可用')
+        setSpaces([])
+        setIsLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleTakeToWorkbench = async (space: ResearchSpace) => {
+    setOpeningSpaceId(space.id)
+    try {
+      const response = await openResearchSpace(space.id)
+      setWorkbenchContext(response.context)
+      navigate('/workbench')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '载入工作台失败')
+    } finally {
+      setOpeningSpaceId(null)
+    }
   }
 
   const handleOpenBlank = () => {
@@ -93,9 +80,30 @@ export default function Courses() {
           </Button>
         </header>
 
-        <section className="grid gap-5 xl:grid-cols-3">
-          {spaces.map(space => (
-            <Card key={space.title} className="flex min-h-[320px] flex-col justify-between">
+        {isLoading && (
+          <section className="rounded-2xl border border-dashed border-scholar-border bg-white/70 px-5 py-10 text-center text-sm font-semibold text-scholar-text-secondary">
+            正在加载研究空间...
+          </section>
+        )}
+
+        {!isLoading && errorMessage && (
+          <section className="rounded-2xl border border-rose-100 bg-rose-50 px-5 py-8 text-center">
+            <h2 className="text-base font-bold text-rose-700">研究空间加载失败</h2>
+            <p className="mt-2 text-sm text-rose-600">{errorMessage}</p>
+          </section>
+        )}
+
+        {!isLoading && !errorMessage && spaces.length === 0 && (
+          <section className="rounded-2xl border border-dashed border-scholar-border bg-white/70 px-5 py-10 text-center">
+            <h2 className="text-base font-bold text-scholar-text-primary">暂无研究空间</h2>
+            <p className="mt-2 text-sm text-scholar-text-secondary">课程研究空间将在后端同步课程或创建研究任务后显示。</p>
+          </section>
+        )}
+
+        {!isLoading && !errorMessage && spaces.length > 0 && (
+          <section className="grid gap-5 xl:grid-cols-3">
+            {spaces.map(space => (
+            <Card key={space.id} className="flex min-h-[320px] flex-col justify-between">
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -121,7 +129,7 @@ export default function Courses() {
 
               <div className="mt-5 flex flex-col gap-2">
                 <Button onClick={() => handleTakeToWorkbench(space)} className="w-full">
-                  载入工作台剖析
+                  {openingSpaceId === space.id ? '正在载入' : '载入工作台剖析'}
                   <ChevronRight size={16} />
                 </Button>
                 <Button variant="secondary" onClick={() => navigate('/library')} className="w-full">
@@ -129,8 +137,9 @@ export default function Courses() {
                 </Button>
               </div>
             </Card>
-          ))}
-        </section>
+            ))}
+          </section>
+        )}
       </div>
     </div>
   )

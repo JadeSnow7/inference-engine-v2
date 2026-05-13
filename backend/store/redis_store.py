@@ -214,6 +214,83 @@ class RedisDocumentStore:
 
 
 # ---------------------------------------------------------------------------
+# RedisCourseStore
+# ---------------------------------------------------------------------------
+
+DEFAULT_RESEARCH_SPACES: list[dict[str, Any]] = [
+    {
+        "id": "microeconomics-llm-education",
+        "title": "Principles of Microeconomics",
+        "teacher": "Prof. John Doe",
+        "topic": "大语言模型在教育领域的应用综述",
+        "literatureCount": 24,
+        "graphUpdates": 5,
+        "status": "正在撰写文献综述",
+        "material": {
+            "title": "Theory of the Firm",
+            "type": "outline",
+            "sourceType": "lecture",
+        },
+    },
+    {
+        "id": "education-research-methods-ai-feedback",
+        "title": "Research Methods in Education",
+        "teacher": "Dr. Lin Chen",
+        "topic": "AI 学习反馈工具的课堂成效研究",
+        "literatureCount": 18,
+        "graphUpdates": 3,
+        "status": "等待规范校验",
+        "material": {
+            "title": "A Survey on AI-Powered Educational Tools",
+            "type": "review",
+            "sourceType": "paper",
+        },
+    },
+    {
+        "id": "academic-writing-thesis-norms",
+        "title": "Academic Writing",
+        "teacher": "Writing Center",
+        "topic": "本科论文结构与引用规范",
+        "literatureCount": 9,
+        "graphUpdates": 2,
+        "status": "需要补充引用证据",
+        "material": {
+            "title": "HUST Undergraduate Thesis Norms",
+            "type": "gap",
+            "sourceType": "lecture",
+        },
+    },
+]
+
+
+class RedisCourseStore:
+    """Stores per-user research-space data, seeded by safe defaults."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _spaces_key(user_id: str) -> str:
+        return f"research_spaces:{user_id}"
+
+    async def list_research_spaces(self, user_id: str) -> list[dict]:
+        raw = await self.client.get(self._spaces_key(user_id))
+        if not raw:
+            return [json.loads(json.dumps(space, ensure_ascii=False)) for space in DEFAULT_RESEARCH_SPACES]
+        try:
+            spaces = json.loads(raw)
+        except Exception:
+            return [json.loads(json.dumps(space, ensure_ascii=False)) for space in DEFAULT_RESEARCH_SPACES]
+        return spaces if isinstance(spaces, list) else [json.loads(json.dumps(space, ensure_ascii=False)) for space in DEFAULT_RESEARCH_SPACES]
+
+    async def get_research_space(self, user_id: str, space_id: str) -> Optional[dict]:
+        for space in await self.list_research_spaces(user_id):
+            if space.get("id") == space_id:
+                return space
+        return None
+
+
+# ---------------------------------------------------------------------------
 # UserStore
 # ---------------------------------------------------------------------------
 

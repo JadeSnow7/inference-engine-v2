@@ -7,6 +7,14 @@ import { useLayoutStore } from '../../store/layout'
 import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 
+const fetchResearchSpaces = vi.hoisted(() => vi.fn())
+const openResearchSpace = vi.hoisted(() => vi.fn())
+
+vi.mock('../../api/courses', () => ({
+  fetchResearchSpaces: (...args: unknown[]) => fetchResearchSpaces(...args),
+  openResearchSpace: (...args: unknown[]) => openResearchSpace(...args),
+}))
+
 vi.mock('@xyflow/react', () => ({
   ReactFlow: ({
     nodes,
@@ -49,6 +57,33 @@ function installMemoryStorage() {
 describe('course to workbench handoff', () => {
   beforeEach(() => {
     installMemoryStorage()
+    fetchResearchSpaces.mockReset()
+    openResearchSpace.mockReset()
+    fetchResearchSpaces.mockResolvedValue({
+      items: [{
+        id: 'microeconomics-llm-education',
+        title: 'Principles of Microeconomics',
+        teacher: 'Prof. John Doe',
+        topic: '大语言模型在教育领域的应用综述',
+        literatureCount: 24,
+        graphUpdates: 5,
+        status: '正在撰写文献综述',
+        material: {
+          title: 'Theory of the Firm',
+          type: 'outline',
+          sourceType: 'lecture',
+        },
+      }],
+    })
+    openResearchSpace.mockResolvedValue({
+      context: {
+        sourceTitle: 'Theory of the Firm',
+        actionType: 'outline',
+        courseTitle: 'Principles of Microeconomics',
+        sourceType: 'lecture',
+        createdAt: '2026-05-13T00:00:00.000Z',
+      },
+    })
     window.history.pushState({}, '', '/courses')
     useUserStore.setState({ token: 'token-1', userId: 'alex@hust.edu.cn' })
     useLayoutStore.setState({ workbenchContext: null, isRightPanelOpen: false })
@@ -58,14 +93,14 @@ describe('course to workbench handoff', () => {
   it('opens workbench with the selected course material visible in context and AI input', async () => {
     render(<App />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /载入工作台剖析/i })[0])
+    fireEvent.click(await screen.findByRole('button', { name: /载入工作台剖析/i }))
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/workbench')
     })
 
-    expect(screen.getByText('Theory of the Firm')).toBeInTheDocument()
+    expect(await screen.findByText('Theory of the Firm')).toBeInTheDocument()
     expect(screen.getByText(/当前研究上下文/)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Theory of the Firm/)).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText(/Theory of the Firm/)).toBeInTheDocument()
   })
 })
