@@ -291,6 +291,73 @@ class RedisCourseStore:
 
 
 # ---------------------------------------------------------------------------
+# RedisEvidenceStore
+# ---------------------------------------------------------------------------
+
+DEFAULT_EVIDENCE: list[dict[str, Any]] = [
+    {
+        "id": "norm-hust-2026",
+        "title": "华中科技大学本科论文写作规范",
+        "venue": "HUST Norm Corpus",
+        "year": 2026,
+        "score": 0.94,
+        "type": "norm",
+    },
+    {
+        "id": "edu-llm-review-2025",
+        "title": "Large Language Models in Education: A Comprehensive Review",
+        "venue": "Computers & Education",
+        "year": 2025,
+        "score": 0.91,
+        "type": "paper",
+    },
+    {
+        "id": "ai-feedback-2024",
+        "title": "AI Feedback Tools and Learning Outcomes",
+        "venue": "Learning Analytics",
+        "year": 2024,
+        "score": 0.87,
+        "type": "paper",
+    },
+]
+
+
+class RedisEvidenceStore:
+    """Stores user-scoped evidence references surfaced in Library."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _evidence_key(user_id: str) -> str:
+        return f"evidence:{user_id}"
+
+    async def save_evidence(self, user_id: str, items: list[dict]) -> None:
+        await self.client.set(
+            self._evidence_key(user_id),
+            json.dumps(items, ensure_ascii=False),
+        )
+
+    async def list_evidence(self, user_id: str) -> list[dict]:
+        raw = await self.client.get(self._evidence_key(user_id))
+        persisted: list[dict] = []
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    persisted = [item for item in parsed if isinstance(item, dict)]
+            except Exception:
+                persisted = []
+
+        by_id = {item["id"]: json.loads(json.dumps(item, ensure_ascii=False)) for item in DEFAULT_EVIDENCE}
+        for item in persisted:
+            item_id = item.get("id")
+            if isinstance(item_id, str):
+                by_id[item_id] = item
+        return list(by_id.values())
+
+
+# ---------------------------------------------------------------------------
 # UserStore
 # ---------------------------------------------------------------------------
 
