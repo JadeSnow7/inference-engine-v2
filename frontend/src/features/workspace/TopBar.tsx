@@ -77,9 +77,13 @@ function getSaveStatusLabel(status: WorkspaceSaveStatus): string {
   switch (status) {
     case 'saved':
       return '已保存'
+    case 'saving':
+      return '保存中'
     case 'modified':
       return '已修改'
     case 'local-saved':
       return '已保存到本地'
+    case 'error':
+      return '保存失败'
   }
 }
