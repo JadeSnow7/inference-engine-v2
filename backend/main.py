@@ -13,6 +13,7 @@ from api.graph import router as graph_router
 from api.health import router as health_router
 from api.library import router as library_router
 from api.responses import register_error_handlers
+from api.search import router as search_router
 from api.users import router as users_router
 from api.writing import router as writing_router
 from config import settings
@@ -98,6 +99,7 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
+app.include_router(search_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")
 app.include_router(users_router, prefix="/api")
 

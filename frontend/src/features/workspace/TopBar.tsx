@@ -1,4 +1,5 @@
-import { Bell, CircleHelp, GraduationCap, Search, ShieldCheck } from 'lucide-react'
+import { Bell, CircleHelp, GraduationCap, ShieldCheck } from 'lucide-react'
+import { SearchBox } from '../../components/workspace/SearchBox'
 import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 import type { WorkspaceSaveStatus } from '../../types/workspace'
@@ -32,15 +33,13 @@ export function TopBar() {
         </div>
       </div>
 
-      <label className="relative hidden w-[300px] items-center md:flex">
-        <Search className="absolute left-3 text-scholar-text-weak" size={16} />
-        <input
-          disabled
-          aria-label="工作台搜索暂未接入"
-          className="h-9 w-full rounded-xl border border-transparent bg-scholar-bg-canvas pl-9 pr-3 text-sm outline-none transition focus:border-scholar-primary/40 focus:bg-white focus:ring-4 focus:ring-blue-100"
-          placeholder="工作台搜索暂未接入"
-        />
-      </label>
+      <SearchBox
+        ariaLabel="工作台搜索"
+        placeholder="搜索当前工作台"
+        scope="workspace"
+        wrapperClassName="relative hidden w-[300px] md:block"
+        inputClassName="h-9 w-full rounded-xl border border-transparent bg-scholar-bg-canvas pl-9 pr-3 text-sm outline-none transition focus:border-scholar-primary/40 focus:bg-white focus:ring-4 focus:ring-blue-100"
+      />
 
       <button
         className="rounded-xl p-2 text-scholar-text-secondary transition hover:bg-scholar-bg-canvas hover:text-scholar-primary"

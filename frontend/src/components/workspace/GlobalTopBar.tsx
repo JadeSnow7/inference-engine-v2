@@ -1,6 +1,7 @@
-import { Bell, Plus, Search, Settings } from 'lucide-react'
+import { Bell, Plus, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useUserStore } from '../../store/user'
+import { SearchBox } from './SearchBox'
 
 export function GlobalTopBar() {
   const navigate = useNavigate()
@@ -9,15 +10,13 @@ export function GlobalTopBar() {
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 border-b border-scholar-border bg-white/90 px-5 shadow-sm backdrop-blur">
       <div className="min-w-0 flex-1">
-        <label className="relative flex max-w-[440px] items-center">
-          <Search className="absolute left-3 text-scholar-text-weak" size={16} />
-          <input
-            disabled
-            aria-label="全局搜索暂未接入"
-            className="h-10 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas pl-9 pr-3 text-sm outline-none transition focus:border-scholar-primary/40 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            placeholder="全局搜索暂未接入"
-          />
-        </label>
+        <SearchBox
+          ariaLabel="全局搜索"
+          placeholder="搜索文档、课程、证据和会话"
+          scope="global"
+          wrapperClassName="relative max-w-[440px]"
+          inputClassName="h-10 w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas pl-9 pr-3 text-sm outline-none transition focus:border-scholar-primary/40 focus:bg-white focus:ring-4 focus:ring-blue-100"
+        />
       </div>
 
       <button

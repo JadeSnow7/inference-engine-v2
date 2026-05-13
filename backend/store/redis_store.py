@@ -189,6 +189,22 @@ class RedisDocumentStore:
         except Exception:
             return None
 
+    async def list_documents(self, user_id: str) -> list[dict]:
+        pattern = self._document_key(user_id, "*")
+        documents = []
+        async for key in self.client.scan_iter(match=pattern):
+            raw = await self.client.get(key)
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                documents.append(parsed)
+        documents.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
+        return documents
+
     async def add_version(self, user_id: str, document_id: str, version: dict) -> dict:
         await self.client.lpush(
             self._versions_key(user_id, document_id),
