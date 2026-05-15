@@ -450,6 +450,23 @@ class RedisEvidenceStore:
                 by_id[item_id] = item
         return list(by_id.values())
 
+    async def update_evidence(self, user_id: str, evidence_id: str, updates: dict) -> dict | None:
+        items = await self.list_evidence(user_id)
+        matched = None
+        for index, item in enumerate(items):
+            if item.get("id") == evidence_id:
+                next_item = {
+                    **item,
+                    **{key: value for key, value in updates.items() if value is not None},
+                }
+                items[index] = next_item
+                matched = next_item
+                break
+        if matched is None:
+            return None
+        await self.save_evidence(user_id, items)
+        return matched
+
 
 # ---------------------------------------------------------------------------
 # RedisNotificationStore
