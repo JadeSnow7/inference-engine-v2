@@ -16,3 +16,4 @@ dist/
 audit-artifacts/
 backend/data/*.gpickle
 .worktrees/
+.superpowers/
