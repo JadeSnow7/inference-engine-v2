@@ -56,6 +56,26 @@ describe('Writing page', () => {
     expect(screen.getByText('华中科技大学本科论文规范')).toBeInTheDocument()
     expect(screen.getByText('摘要缺少方法说明。')).toBeInTheDocument()
     expect(screen.getByText('本科毕业论文写作规范')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '推入审阅队列' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '引文核查' }))
+    fireEvent.click(screen.getByRole('button', { name: '推入审阅队列' }))
+    expect(screen.getByText('已推入工作台审阅队列')).toBeInTheDocument()
+    expect(useWorkspaceStore.getState().reviewItems[0]).toMatchObject({
+      documentId: 'local-draft',
+      source: 'writing_analysis',
+      kind: 'norm',
+      status: 'pending',
+      reason: '摘要缺少方法说明。',
+      evidenceIds: ['ref-1'],
+      versionAfterId: null,
+    })
+    expect(useWorkspaceStore.getState().reviewItems[0].changes[0]).toMatchObject({
+      id: 'writing-val-1',
+      blockId: 'val-1',
+      type: 'modify',
+      revisedText: '摘要缺少方法说明。',
+      reason: 'warning',
+    })
     expect(analyzeWriting).toHaveBeenCalledWith({
       text: '本文研究大语言模型在教育领域中的应用。',
       mode: 'norms',
