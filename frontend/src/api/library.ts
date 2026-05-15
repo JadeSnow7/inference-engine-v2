@@ -10,6 +10,7 @@ export interface EvidenceResponse {
 export interface EvidenceFilters {
   q?: string
   type?: string
+  status?: EvidenceStatus
 }
 
 export interface EvidenceUpdateInput {
@@ -25,6 +26,7 @@ export function fetchEvidence(filters: EvidenceFilters = {}): Promise<EvidenceRe
   const params = new URLSearchParams()
   if (filters.q) params.set('q', filters.q)
   if (filters.type) params.set('type', filters.type)
+  if (filters.status) params.set('status', filters.status)
   const query = params.toString()
   return apiFetch<EvidenceResponse>(`/api/library/evidence${query ? `?${query}` : ''}`)
 }

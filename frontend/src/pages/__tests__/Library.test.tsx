@@ -24,13 +24,25 @@ describe('Library API evidence', () => {
 
   it('loads evidence from the library API without static fallback data', async () => {
     fetchEvidence.mockResolvedValue({
-      items: [{ id: 'api-evidence', title: 'API Evidence', venue: 'API Venue', year: 2026, score: 0.92, type: 'paper' }],
+      items: [{
+        id: 'api-evidence',
+        title: 'API Evidence',
+        venue: 'API Venue',
+        year: 2026,
+        score: 0.92,
+        type: 'paper',
+        status: 'needs_review',
+        linkedBlockIds: ['intro'],
+        confidence: 0.92,
+      }],
     })
 
     renderLibrary()
 
     expect(screen.getByText('正在加载证据库...')).toBeInTheDocument()
     expect(await screen.findByText('API Evidence')).toBeInTheDocument()
+    expect(screen.getByText('待核验', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('关联段落 1', { selector: 'span' })).toBeInTheDocument()
     expect(screen.queryByText('Large Language Models in Education: A Comprehensive Review')).not.toBeInTheDocument()
   })
 
@@ -44,6 +56,18 @@ describe('Library API evidence', () => {
 
     await waitFor(() => {
       expect(fetchEvidence).toHaveBeenLastCalledWith({ q: 'HUST', type: 'norm' })
+    })
+  })
+
+  it('filters evidence by status in the ledger', async () => {
+    fetchEvidence.mockResolvedValue({ items: [] })
+
+    renderLibrary()
+
+    fireEvent.change(screen.getByLabelText('证据状态'), { target: { value: 'verified' } })
+
+    await waitFor(() => {
+      expect(fetchEvidence).toHaveBeenLastCalledWith({ status: 'verified' })
     })
   })
 
