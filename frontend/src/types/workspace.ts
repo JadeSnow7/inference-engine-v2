@@ -75,7 +75,41 @@ export interface DocumentSuggestion {
 export type AIRunStatus = 'idle' | 'retrieving' | 'reasoning' | 'generating' | 'done' | 'error' | 'canceled'
 export type WorkspaceSaveStatus = 'saved' | 'saving' | 'modified' | 'local-saved' | 'error'
 
-export type RightPanelMode = 'graph' | 'list'
+export type ReviewItemStatus = 'pending' | 'accepted' | 'rejected' | 'deferred'
+export type ReviewItemSource = 'chat' | 'document_tool' | 'writing_analysis' | 'manual'
+export type ReviewItemKind = 'rewrite' | 'expand' | 'logic_check' | 'citation' | 'norm' | 'structure'
+
+export interface ReviewItem {
+  id: string
+  documentId: string
+  source: ReviewItemSource
+  kind: ReviewItemKind
+  status: ReviewItemStatus
+  targetBlockIds: string[]
+  beforeBlocks: DocumentBlock[]
+  afterBlocks: DocumentBlock[]
+  changes: SuggestionChange[]
+  reason: string
+  evidenceIds: string[]
+  versionBeforeId?: string | null
+  versionAfterId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type EvidenceStatus = 'candidate' | 'inserted' | 'needs_review' | 'verified' | 'conflict'
+
+export interface EvidenceLedgerItem extends ReferenceItem {
+  type?: 'paper' | 'norm' | 'dataset' | 'other'
+  status?: EvidenceStatus
+  linkedBlockIds?: string[]
+  confidence?: number
+  sourceType?: string
+  verifiedAt?: string
+  usedAt?: string
+}
+
+export type RightPanelMode = 'review' | 'evidence' | 'graph' | 'versions'
 
 export type GraphNodeType = 'core' | 'concept' | 'method' | 'technology' | 'paper' | 'gap'
 

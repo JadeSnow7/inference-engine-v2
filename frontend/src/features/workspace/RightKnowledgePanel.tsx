@@ -29,9 +29,9 @@ export function RightKnowledgePanel() {
           </button>
           <button
             className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-              rightPanelMode === 'list' ? 'bg-white text-scholar-primary shadow-sm' : 'text-scholar-text-secondary'
+              rightPanelMode === 'evidence' ? 'bg-white text-scholar-primary shadow-sm' : 'text-scholar-text-secondary'
             }`}
-            onClick={() => setRightPanelMode('list')}
+            onClick={() => setRightPanelMode('evidence')}
           >
             <List size={14} />
             列表视图
@@ -41,7 +41,11 @@ export function RightKnowledgePanel() {
 
       <div className="min-h-0 flex-[1.05] border-b border-scholar-border">
         <GraphToolbar />
-        {!hasGraphNodes ? (
+        {rightPanelMode !== 'graph' && rightPanelMode !== 'evidence' ? (
+          <div className="flex h-[340px] items-center justify-center bg-scholar-bg-canvas px-6 text-center text-sm text-scholar-text-secondary">
+            该模式将在工作区上下文抽屉中显示
+          </div>
+        ) : !hasGraphNodes ? (
           <div className="flex h-[340px] items-center justify-center bg-scholar-bg-canvas px-6 text-center text-sm text-scholar-text-secondary">
             暂无图谱节点
           </div>

@@ -59,14 +59,14 @@ describe('useWorkspaceStore', () => {
     store.setActiveVersion('v3-1')
     store.setSelectedGraphNode('cnn')
     store.setSelectedBlock('block-related-work')
-    store.setRightPanelMode('list')
+    store.setRightPanelMode('evidence')
     store.setAIRunStatus('reasoning')
 
     expect(useWorkspaceStore.getState().activeConversationId).toBe('conv-review')
     expect(useWorkspaceStore.getState().activeVersionId).toBe('v3-1')
     expect(useWorkspaceStore.getState().selectedGraphNodeId).toBe('cnn')
     expect(useWorkspaceStore.getState().selectedBlockId).toBe('block-related-work')
-    expect(useWorkspaceStore.getState().rightPanelMode).toBe('list')
+    expect(useWorkspaceStore.getState().rightPanelMode).toBe('evidence')
     expect(useWorkspaceStore.getState().aiRunStatus).toBe('reasoning')
   })
 
