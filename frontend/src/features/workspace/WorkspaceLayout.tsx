@@ -3,8 +3,8 @@ import { useLayoutStore } from '../../store/layout'
 import { useWorkspaceStore } from '../../store/workspace'
 import { LeftSidebar } from './LeftSidebar'
 import { MainWorkspace } from './MainWorkspace'
-import { RightKnowledgePanel } from './RightKnowledgePanel'
 import { TopBar } from './TopBar'
+import { WorkspaceContextDrawer } from './WorkspaceContextDrawer'
 
 export function WorkspaceLayout({ embedded = false }: { embedded?: boolean }) {
   const hydrateLocalDraft = useWorkspaceStore(state => state.hydrateLocalDraft)
@@ -46,7 +46,7 @@ export function WorkspaceLayout({ embedded = false }: { embedded?: boolean }) {
       <div className="flex min-h-0 flex-1 gap-3 p-3">
         {!embedded && <LeftSidebar />}
         <MainWorkspace />
-        <RightKnowledgePanel />
+        <WorkspaceContextDrawer />
       </div>
     </div>
   )

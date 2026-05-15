@@ -167,4 +167,28 @@ describe('workspace views', () => {
     expect(await screen.findByTestId('knowledge-flow')).toBeInTheDocument()
     expect(screen.getAllByText('API Graph Topic').length).toBeGreaterThan(0)
   })
+
+  it('renders the workspace context drawer tabs', async () => {
+    window.history.pushState({}, '', '/workbench')
+
+    render(<App />)
+
+    expect(screen.getByRole('tab', { name: '审阅' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '证据' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '图谱' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '版本' })).toBeInTheDocument()
+    expect(screen.getByText('暂无待处理审阅项')).toBeInTheDocument()
+  })
+
+  it('limits evidence drawer results to the selected block citations', () => {
+    window.history.pushState({}, '', '/workbench')
+    useWorkspaceStore.getState().setSelectedBlock('block-intro-1')
+    useWorkspaceStore.getState().setRightPanelMode('evidence')
+
+    render(<App />)
+
+    const drawer = screen.getByRole('complementary', { name: '工作台上下文' })
+    expect(within(drawer).getByText('AlexNet: Image Classification with Deep Convolutional Neural Networks')).toBeInTheDocument()
+    expect(within(drawer).queryByText('Deep Residual Learning for Image Recognition')).not.toBeInTheDocument()
+  })
 })
