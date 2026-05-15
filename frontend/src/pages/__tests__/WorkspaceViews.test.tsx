@@ -129,7 +129,7 @@ describe('workspace views', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: '研究工作台总览' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '写作工作台总览' })).toBeInTheDocument()
     expect(await screen.findByText('当前研究焦点')).toBeInTheDocument()
     expect(screen.getByText('AI 建议')).toBeInTheDocument()
     expect(screen.queryByText(/Welcome Back/i)).not.toBeInTheDocument()
@@ -154,7 +154,8 @@ describe('workspace views', () => {
 
     expect(screen.getByRole('heading', { name: '研究空间' })).toBeInTheDocument()
     expect(await screen.findByText('大语言模型在教育领域的应用综述')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /进入研究工作台/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /打开空白工作台/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /进入研究工作台/ })).not.toBeInTheDocument()
   })
 
   it('keeps discovery inside the workspace page model', async () => {

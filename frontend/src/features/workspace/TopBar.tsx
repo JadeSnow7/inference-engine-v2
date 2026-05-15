@@ -17,7 +17,7 @@ export function TopBar() {
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-scholar-primary to-scholar-discovery text-white shadow-lg shadow-blue-200">
           <GraduationCap size={21} />
         </div>
-        <span className="whitespace-nowrap text-base font-bold tracking-tight">AI 教学辅助平台</span>
+        <span className="whitespace-nowrap text-base font-bold tracking-tight">学术写作助手</span>
       </div>
 
       <div className="h-6 w-px bg-scholar-border" />

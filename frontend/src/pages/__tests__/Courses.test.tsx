@@ -81,6 +81,27 @@ describe('Courses page API data', () => {
     expect(screen.getByText('courses unavailable')).toBeInTheDocument()
   })
 
+  it('opens a blank workbench without seeding the sample document title', async () => {
+    fetchResearchSpaces.mockResolvedValue({ items: [] })
+
+    renderCourses()
+
+    await screen.findByText('暂无研究空间')
+
+    const blankButton = screen.getByRole('button', { name: /打开空白工作台/ })
+    expect(blankButton).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /进入研究工作台/ })).not.toBeInTheDocument()
+
+    fireEvent.click(blankButton)
+
+    expect(JSON.parse(window.sessionStorage.getItem(WORKBENCH_CONTEXT_KEY) ?? '{}')).toEqual(expect.objectContaining({
+      sourceTitle: '未命名研究文档',
+      courseTitle: '空白工作台',
+    }))
+    expect(screen.queryByText('大语言模型在教育领域的应用综述')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/workbench')
+  })
+
   it('opens a course through the API before navigating to the workbench', async () => {
     fetchResearchSpaces.mockResolvedValue({ items: [apiSpace] })
     openResearchSpace.mockResolvedValue({
@@ -96,7 +117,7 @@ describe('Courses page API data', () => {
 
     renderCourses()
 
-    fireEvent.click(await screen.findByRole('button', { name: /载入工作台剖析/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /打开工作台/i }))
 
     await waitFor(() => {
       expect(openResearchSpace).toHaveBeenCalledWith('space-1')
