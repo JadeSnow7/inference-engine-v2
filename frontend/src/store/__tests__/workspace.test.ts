@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceStore } from '../workspace'
 import { aiSuggestion } from '../../mocks/workspaceMock'
-import type { DocumentSuggestion } from '../../types/workspace'
+import type { DocumentSuggestion, ReviewItem } from '../../types/workspace'
 
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
@@ -27,6 +27,27 @@ vi.mock('../../api/documents', () => ({
 const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
 const WORKBENCH_SNAPSHOT_KEY = 'workbench:workspaceSnapshot:v1'
 
+function makeReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
+  return {
+    id: 'review-1',
+    documentId: 'doc-1',
+    source: 'document_tool',
+    kind: 'rewrite',
+    status: 'pending',
+    targetBlockIds: ['b1'],
+    beforeBlocks: [],
+    afterBlocks: [],
+    changes: [],
+    reason: 'Improve clarity',
+    evidenceIds: [],
+    versionBeforeId: null,
+    versionAfterId: null,
+    createdAt: '2026-05-15T00:00:00Z',
+    updatedAt: '2026-05-15T00:00:00Z',
+    ...overrides,
+  }
+}
+
 function installMemoryStorage(options: { throwOnSet?: boolean } = {}) {
   const values = new Map<string, string>()
   vi.stubGlobal('localStorage', {
@@ -49,7 +70,19 @@ describe('useWorkspaceStore', () => {
     fetchDocumentVersions.mockReset()
     createDocumentVersion.mockReset()
     restoreDocumentVersion.mockReset()
+    vi.useRealTimers()
     useWorkspaceStore.getState().resetWorkspace()
+  })
+
+  it('defaults and resets the right panel to review mode', () => {
+    const store = useWorkspaceStore.getState()
+
+    expect(store.rightPanelMode).toBe('review')
+
+    store.setRightPanelMode('evidence')
+    store.resetWorkspace()
+
+    expect(useWorkspaceStore.getState().rightPanelMode).toBe('review')
   })
 
   it('tracks active workspace selections', () => {
@@ -692,5 +725,138 @@ describe('useWorkspaceStore', () => {
 
     expect(useWorkspaceStore.getState().documentErrorMessage).toBe('backend unavailable')
     expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
+  })
+
+  it('defensively clones review items when setting them', () => {
+    const store = useWorkspaceStore.getState()
+    const item = makeReviewItem({
+      targetBlockIds: ['b1'],
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+      afterBlocks: [{ id: 'b1', type: 'paragraph', content: 'After content' }],
+      changes: [{
+        id: 'change-1',
+        blockId: 'b1',
+        type: 'modify',
+        originalText: 'Before content',
+        revisedText: 'After content',
+        reason: 'Improve clarity',
+      }],
+      evidenceIds: ['evidence-1'],
+    })
+    const items = [item]
+
+    store.setReviewItems(items)
+    item.targetBlockIds.push('b2')
+    item.beforeBlocks[0].content = 'Mutated before content'
+    item.changes[0].reason = 'Mutated reason'
+    item.evidenceIds.push('evidence-2')
+
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+    expect(useWorkspaceStore.getState().reviewItems).not.toBe(items)
+    expect(useWorkspaceStore.getState().reviewItems[0].targetBlockIds).toEqual(['b1'])
+    expect(useWorkspaceStore.getState().reviewItems[0].beforeBlocks[0].content).toBe('Before content')
+    expect(useWorkspaceStore.getState().reviewItems[0].changes[0].reason).toBe('Improve clarity')
+    expect(useWorkspaceStore.getState().reviewItems[0].evidenceIds).toEqual(['evidence-1'])
+  })
+
+  it('prepends a new review item when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem({ id: 'review-existing' })])
+    store.upsertReviewItem(makeReviewItem({ id: 'review-new' }))
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => item.id)).toEqual([
+      'review-new',
+      'review-existing',
+    ])
+  })
+
+  it('defensively clones new review items when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    const item = makeReviewItem({
+      id: 'review-new',
+      targetBlockIds: ['b1'],
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+    })
+
+    store.upsertReviewItem(item)
+    item.targetBlockIds.push('b2')
+    item.beforeBlocks[0].content = 'Mutated before content'
+
+    expect(useWorkspaceStore.getState().reviewItems[0].targetBlockIds).toEqual(['b1'])
+    expect(useWorkspaceStore.getState().reviewItems[0].beforeBlocks[0].content).toBe('Before content')
+  })
+
+  it('replaces an existing review item in place when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([
+      makeReviewItem({ id: 'review-1', status: 'pending' }),
+      makeReviewItem({ id: 'review-2', status: 'pending' }),
+    ])
+
+    store.upsertReviewItem(makeReviewItem({ id: 'review-2', status: 'deferred' }))
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => [item.id, item.status])).toEqual([
+      ['review-1', 'pending'],
+      ['review-2', 'deferred'],
+    ])
+  })
+
+  it('defensively clones replacement review items when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    const replacement = makeReviewItem({
+      id: 'review-2',
+      targetBlockIds: ['b2'],
+      beforeBlocks: [{ id: 'b2', type: 'paragraph', content: 'Replacement content' }],
+    })
+    store.setReviewItems([
+      makeReviewItem({ id: 'review-1' }),
+      makeReviewItem({ id: 'review-2' }),
+    ])
+
+    store.upsertReviewItem(replacement)
+    replacement.targetBlockIds.push('b3')
+    replacement.beforeBlocks[0].content = 'Mutated replacement content'
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => item.id)).toEqual(['review-1', 'review-2'])
+    expect(useWorkspaceStore.getState().reviewItems[1].targetBlockIds).toEqual(['b2'])
+    expect(useWorkspaceStore.getState().reviewItems[1].beforeBlocks[0].content).toBe('Replacement content')
+  })
+
+  it('updates review item status timestamp and accepted version', () => {
+    const now = new Date('2026-05-15T12:34:56.000Z')
+    const store = useWorkspaceStore.getState()
+    vi.useFakeTimers()
+
+    try {
+      vi.setSystemTime(now)
+      store.setReviewItems([makeReviewItem()])
+      store.setReviewItemStatus('review-1', 'accepted', 'version-after-1')
+
+      const updatedItem = useWorkspaceStore.getState().reviewItems[0]
+      expect(updatedItem.status).toBe('accepted')
+      expect(updatedItem.versionAfterId).toBe('version-after-1')
+      expect(updatedItem.updatedAt).toBe(now.toISOString())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears review item accepted version when status update receives null', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem({ versionAfterId: 'version-after-1' })])
+
+    store.setReviewItemStatus('review-1', 'deferred', null)
+
+    expect(useWorkspaceStore.getState().reviewItems[0].versionAfterId).toBeNull()
+  })
+
+  it('clears review items when resetting the workspace', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem()])
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+
+    store.resetWorkspace()
+
+    expect(useWorkspaceStore.getState().reviewItems).toEqual([])
   })
 })

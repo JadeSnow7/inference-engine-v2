@@ -19,6 +19,7 @@ import type {
   DocumentSuggestion,
   DocumentVersionSnapshot,
   ReferenceItem,
+  ReviewItem,
   RightPanelMode,
   SuggestionChange,
   WorkspaceGraphEdge,
@@ -90,6 +91,7 @@ interface WorkspaceState {
   graphNodes: WorkspaceGraphNode[]
   graphEdges: WorkspaceGraphEdge[]
   references: ReferenceItem[]
+  reviewItems: ReviewItem[]
   setActiveConversation: (id: string) => void
   setActiveVersion: (id: string) => void
   startVersionPreview: (id: string) => void
@@ -125,6 +127,9 @@ interface WorkspaceState {
   upsertRagPapers: (papers: PaperItem[]) => void
   upsertRagGaps: (gaps: GapItem[]) => void
   upsertReferences: (references: ReferenceEventItem[]) => void
+  setReviewItems: (items: ReviewItem[]) => void
+  upsertReviewItem: (item: ReviewItem) => void
+  setReviewItemStatus: (id: string, status: ReviewItem['status'], versionAfterId?: string | null) => void
   clearRagArtifacts: () => void
   nextChange: () => void
   previousChange: () => void
@@ -184,6 +189,17 @@ function cloneDocumentBlock(block: DocumentBlock): DocumentBlock {
   }
 }
 
+function cloneReviewItem(item: ReviewItem): ReviewItem {
+  return {
+    ...item,
+    targetBlockIds: [...item.targetBlockIds],
+    beforeBlocks: item.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: item.afterBlocks.map(cloneDocumentBlock),
+    changes: item.changes.map(change => ({ ...change })),
+    evidenceIds: [...item.evidenceIds],
+  }
+}
+
 function cloneGraphNode(node: WorkspaceGraphNode): WorkspaceGraphNode {
   return {
     ...node,
@@ -235,7 +251,7 @@ function initialWorkspaceState() {
     selectedGraphNodeId: 'cnn',
     selectedReferenceId: null,
     selectedBlockId: null,
-    rightPanelMode: 'graph' as RightPanelMode,
+    rightPanelMode: 'review' as RightPanelMode,
     aiRunStatus: 'idle' as AIRunStatus,
     aiStageLabel: '',
     aiErrorMessage: '',
@@ -258,6 +274,7 @@ function initialWorkspaceState() {
     graphNodes: cloneGraphNodes(),
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
+    reviewItems: [],
   }
 }
 
@@ -1236,6 +1253,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       excerpt: reference.excerpt,
       url: reference.url,
     }))),
+  })),
+  setReviewItems: (items) => set({ reviewItems: items.map(cloneReviewItem) }),
+  upsertReviewItem: (item) => set(state => {
+    const reviewItem = cloneReviewItem(item)
+    const existingIndex = state.reviewItems.findIndex(entry => entry.id === item.id)
+    if (existingIndex === -1) {
+      return { reviewItems: [reviewItem, ...state.reviewItems] }
+    }
+    const next = [...state.reviewItems]
+    next[existingIndex] = reviewItem
+    return { reviewItems: next }
+  }),
+  setReviewItemStatus: (id, status, versionAfterId) => set(state => ({
+    reviewItems: state.reviewItems.map(item => (
+      item.id === id
+        ? { ...item, status, versionAfterId: versionAfterId !== undefined ? versionAfterId : item.versionAfterId, updatedAt: new Date().toISOString() }
+        : item
+    )),
   })),
   clearRagArtifacts: () => set({
     ragPapers: [],
