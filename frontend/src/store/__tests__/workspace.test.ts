@@ -10,6 +10,9 @@ const updateDocument = vi.hoisted(() => vi.fn())
 const fetchDocumentVersions = vi.hoisted(() => vi.fn())
 const createDocumentVersion = vi.hoisted(() => vi.fn())
 const restoreDocumentVersion = vi.hoisted(() => vi.fn())
+const fetchReviewItems = vi.hoisted(() => vi.fn())
+const createReviewItem = vi.hoisted(() => vi.fn())
+const updateReviewItem = vi.hoisted(() => vi.fn())
 
 vi.mock('../../api/sessions', () => ({
   fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
@@ -22,6 +25,12 @@ vi.mock('../../api/documents', () => ({
   fetchDocumentVersions: (...args: unknown[]) => fetchDocumentVersions(...args),
   createDocumentVersion: (...args: unknown[]) => createDocumentVersion(...args),
   restoreDocumentVersion: (...args: unknown[]) => restoreDocumentVersion(...args),
+}))
+
+vi.mock('../../api/reviewItems', () => ({
+  fetchReviewItems: (...args: unknown[]) => fetchReviewItems(...args),
+  createReviewItem: (...args: unknown[]) => createReviewItem(...args),
+  updateReviewItem: (...args: unknown[]) => updateReviewItem(...args),
 }))
 
 const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
@@ -70,6 +79,12 @@ describe('useWorkspaceStore', () => {
     fetchDocumentVersions.mockReset()
     createDocumentVersion.mockReset()
     restoreDocumentVersion.mockReset()
+    fetchReviewItems.mockReset()
+    createReviewItem.mockReset()
+    updateReviewItem.mockReset()
+    fetchReviewItems.mockResolvedValue({ items: [] })
+    createReviewItem.mockImplementation(async (item: ReviewItem) => item)
+    updateReviewItem.mockImplementation(async (_id: string, input: Partial<ReviewItem> & { documentId: string }) => makeReviewItem({ id: _id, ...input }))
     vi.useRealTimers()
     useWorkspaceStore.getState().resetWorkspace()
   })
@@ -600,13 +615,16 @@ describe('useWorkspaceStore', () => {
       metadata: {},
       createdAt: '2026-05-13T00:02:00.000Z',
     }])
+    fetchReviewItems.mockResolvedValue({ items: [makeReviewItem({ id: 'review-from-api', documentId: 'doc-1' })] })
 
     await useWorkspaceStore.getState().loadDocument('doc-1')
 
     const state = useWorkspaceStore.getState()
     expect(fetchDocument).toHaveBeenCalledWith('doc-1')
     expect(fetchDocumentVersions).toHaveBeenCalledWith('doc-1')
+    expect(fetchReviewItems).toHaveBeenCalledWith('doc-1')
     expect(state.activeDocumentId).toBe('doc-1')
+    expect(state.reviewItems[0].id).toBe('review-from-api')
     expect(state.documentBlocks[1].content).toBe('Loaded from API.')
     expect(state.documentVersions[0]).toEqual(expect.objectContaining({
       id: 'version-1',
@@ -836,6 +854,11 @@ describe('useWorkspaceStore', () => {
       expect(updatedItem.status).toBe('accepted')
       expect(updatedItem.versionAfterId).toBe('version-after-1')
       expect(updatedItem.updatedAt).toBe(now.toISOString())
+      expect(updateReviewItem).toHaveBeenCalledWith('review-1', {
+        documentId: 'doc-1',
+        status: 'accepted',
+        versionAfterId: 'version-after-1',
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -908,6 +931,24 @@ describe('useWorkspaceStore', () => {
       reason: state.currentSuggestion?.reason,
     })
     expect(state.rightPanelMode).toBe('review')
+  })
+
+  it('persists finished AI generation review items for backend documents', () => {
+    useWorkspaceStore.setState({ activeDocumentId: 'doc-1' })
+    const store = useWorkspaceStore.getState()
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Generated paragraph for backend review.')
+    store.finishAIRunAsSuggestion()
+
+    expect(createReviewItem).toHaveBeenCalledWith(expect.objectContaining({
+      documentId: 'doc-1',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      versionAfterId: null,
+    }))
   })
 
   it('replaces an existing suggestion review item with the same id', () => {

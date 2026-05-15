@@ -42,6 +42,7 @@ Important backend modules:
 main.py                  FastAPI app and lifespan wiring
 api/chat.py              POST /api/chat SSE stream
 api/documents.py         /api/documents and version endpoints
+api/review_items.py      /api/review-items persisted review queue
 api/courses.py           research-space/course data
 api/dashboard.py         dashboard summary
 api/library.py           evidence library
@@ -50,7 +51,7 @@ api/search.py            global/workspace/conversation search
 api/notifications.py     notification list/read endpoints
 api/settings.py          user workspace settings
 api/writing.py           /v1/writing/analyze
-store/redis_store.py     Redis stores for users, sessions, documents, courses, evidence, notifications, settings
+store/redis_store.py     Redis stores for users, sessions, documents, review items, courses, evidence, notifications, settings
 rag/graph.py             KnowledgeGraph and demo graph builder
 rag/retriever.py         local GraphRAG retriever
 rag/norm_retriever.py    writing-norm retriever

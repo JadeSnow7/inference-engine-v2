@@ -62,7 +62,7 @@ export default function Writing() {
       versionAfterId: null,
       createdAt: now,
       updatedAt: now,
-    })
+    }, { persist: true })
     setReviewNotice('已推入工作台审阅队列')
   }
 

@@ -1,11 +1,13 @@
 import { Check, Clock3, X } from 'lucide-react'
 import { useWorkspaceStore } from '../../store/workspace'
+import { AISuggestionPanel } from '../ai/AISuggestionPanel'
 
 export function ReviewQueuePanel() {
   const reviewItems = useWorkspaceStore(state => state.reviewItems)
+  const currentSuggestion = useWorkspaceStore(state => state.currentSuggestion)
   const setReviewItemStatus = useWorkspaceStore(state => state.setReviewItemStatus)
 
-  if (reviewItems.length === 0) {
+  if (!currentSuggestion && reviewItems.length === 0) {
     return (
       <div className="flex h-full min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-scholar-border bg-scholar-bg-canvas p-4 text-center">
         <div className="text-sm font-semibold text-scholar-text-primary">暂无待处理审阅项</div>
@@ -16,6 +18,11 @@ export function ReviewQueuePanel() {
 
   return (
     <div className="space-y-3">
+      {currentSuggestion && (
+        <section className="rounded-xl border border-blue-100 bg-blue-50/20">
+          <AISuggestionPanel />
+        </section>
+      )}
       {reviewItems.map(item => (
         <article key={item.id} className="rounded-xl border border-scholar-border bg-white p-3">
           <div className="flex items-start justify-between gap-3">

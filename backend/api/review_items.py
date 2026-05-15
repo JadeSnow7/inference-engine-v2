@@ -28,9 +28,11 @@ def _not_found() -> HTTPException:
 class ReviewItemCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    id: str | None = None
     documentId: str = Field(min_length=1)
     source: ReviewSource
     kind: ReviewKind
+    status: ReviewStatus | None = None
     targetBlockIds: list[str] = Field(default_factory=list)
     beforeBlocks: list[dict[str, Any]] = Field(default_factory=list)
     afterBlocks: list[dict[str, Any]] = Field(default_factory=list)
@@ -39,6 +41,8 @@ class ReviewItemCreateRequest(BaseModel):
     evidenceIds: list[str] = Field(default_factory=list)
     versionBeforeId: str | None = None
     versionAfterId: str | None = None
+    createdAt: str | None = None
+    updatedAt: str | None = None
 
 
 class ReviewItemUpdateRequest(BaseModel):

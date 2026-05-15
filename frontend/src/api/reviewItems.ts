@@ -6,9 +6,11 @@ export interface ReviewItemsResponse {
 }
 
 export interface ReviewItemCreateInput {
+  id?: string
   documentId: string
   source: ReviewItemSource
   kind: ReviewItemKind
+  status?: ReviewItemStatus
   targetBlockIds: string[]
   beforeBlocks: ReviewItem['beforeBlocks']
   afterBlocks: ReviewItem['afterBlocks']
@@ -17,6 +19,8 @@ export interface ReviewItemCreateInput {
   evidenceIds: string[]
   versionBeforeId?: string | null
   versionAfterId?: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ReviewItemUpdateInput {

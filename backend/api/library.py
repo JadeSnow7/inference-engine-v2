@@ -47,7 +47,7 @@ async def list_evidence(
     if type:
         items = [item for item in items if item.get("type") == type]
     if status:
-        items = [item for item in items if item.get("status") == status]
+        items = [item for item in items if item.get("status", "candidate") == status]
     return ok({"items": items})
 
 

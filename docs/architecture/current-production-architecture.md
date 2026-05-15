@@ -27,6 +27,7 @@ Local GraphRAG only loads an embedding model from an existing local path. Set `M
 | `/api/chat` | SSE writing/chat stream and document tool generation |
 | `/api/documents` | workspace document persistence |
 | `/api/documents/{id}/versions` | document version create/list/restore |
+| `/api/review-items` | persisted review queue for AI suggestions and writing-analysis findings |
 | `/api/courses` | research-space/course listing and workbench context |
 | `/api/dashboard` | dashboard metrics, tasks, recent courses, recent documents |
 | `/api/library` | evidence list and filters |
@@ -53,7 +54,7 @@ Product pages are API-backed:
 
 ## Persistence
 
-Redis is the backend persistence boundary for sessions, users, documents, versions, courses, evidence, notifications, and settings. The frontend still keeps an explicit local draft fallback when document saves fail.
+Redis is the backend persistence boundary for sessions, users, documents, versions, review items, courses, evidence, notifications, and settings. The frontend still keeps an explicit local draft fallback when document saves fail.
 
 `workspaceMock` remains as an initial local seed/test fixture for the default workspace state. New production features should not add more mock fallbacks.
 

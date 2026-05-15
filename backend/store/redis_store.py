@@ -295,7 +295,7 @@ class RedisReviewStore:
             if item.get("id") == review_item_id:
                 next_item = {
                     **item,
-                    **{key: value for key, value in updates.items() if value is not None},
+                    **updates,
                     "updatedAt": self._now_iso(),
                 }
                 items[index] = next_item

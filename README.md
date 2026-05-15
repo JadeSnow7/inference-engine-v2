@@ -43,6 +43,7 @@ Current production frontend calls these backend surfaces:
 
 - `/api/chat`: SSE writing/chat stream.
 - `/api/documents` and `/api/documents/{id}/versions`: workspace document and version persistence.
+- `/api/review-items`: persisted AI suggestion and writing-analysis review queue.
 - `/api/courses`, `/api/dashboard`, `/api/library`, `/api/graph`: product pages and evidence/graph data.
 - `/api/search`: global, workspace, conversation, reference, and course search.
 - `/api/notifications`, `/api/settings`: shell notifications and workspace preferences.

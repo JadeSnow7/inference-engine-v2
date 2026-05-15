@@ -80,6 +80,7 @@ class ReviewItemsApiTest(unittest.TestCase):
         request = make_request()
         created = self.run_async(create_review_item(
             ReviewItemCreateRequest(
+                id="review-client-1",
                 documentId="doc-1",
                 source="document_tool",
                 kind="rewrite",
@@ -97,6 +98,7 @@ class ReviewItemsApiTest(unittest.TestCase):
 
         item = response_data(created)
         self.assertEqual(created.status_code, 201)
+        self.assertEqual(item["id"], "review-client-1")
         self.assertEqual(item["status"], "pending")
 
         listed = response_data(self.run_async(list_review_items("doc-1", request, user_id="alice@hust.edu.cn")))
@@ -110,6 +112,14 @@ class ReviewItemsApiTest(unittest.TestCase):
         )))
         self.assertEqual(accepted["status"], "accepted")
         self.assertEqual(accepted["versionAfterId"], "v-after")
+
+        cleared = response_data(self.run_async(update_review_item(
+            item["id"],
+            ReviewItemUpdateRequest(documentId="doc-1", versionAfterId=None),
+            request,
+            user_id="alice@hust.edu.cn",
+        )))
+        self.assertIsNone(cleared["versionAfterId"])
 
     def test_missing_review_item_returns_404(self):
         request = make_request()

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MouseEvent, ReactNode } from 'react'
 import { createJSONStorage } from 'zustand/middleware'
 import App from '../../App'
+import { aiSuggestion } from '../../mocks/workspaceMock'
 import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 
@@ -179,6 +180,18 @@ describe('workspace views', () => {
     expect(screen.getByRole('tab', { name: '图谱' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '版本' })).toBeInTheDocument()
     expect(screen.getByText('暂无待处理审阅项')).toBeInTheDocument()
+  })
+
+  it('keeps generated AI suggestions reviewable and applicable in the drawer', () => {
+    window.history.pushState({}, '', '/workbench')
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+
+    render(<App />)
+
+    const drawer = screen.getByRole('complementary', { name: '工作台上下文' })
+    expect(within(drawer).getByRole('button', { name: '接受全部' })).toBeInTheDocument()
+    expect(within(drawer).getByRole('button', { name: '接受当前' })).toBeInTheDocument()
+    expect(within(drawer).getByText('对比视图')).toBeInTheDocument()
   })
 
   it('limits evidence drawer results to the selected block citations', () => {

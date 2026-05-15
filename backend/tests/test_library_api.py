@@ -79,6 +79,15 @@ class LibraryApiTest(unittest.TestCase):
         self.assertTrue(items)
         self.assertTrue(all(item.get("status") == "verified" for item in items))
 
+    def test_filters_missing_status_evidence_as_candidate(self):
+        request = make_request()
+
+        response = self.run_async(list_evidence(request, status="candidate", user_id="alice@hust.edu.cn"))
+
+        items = response_data(response)["items"]
+        self.assertTrue(items)
+        self.assertTrue(all(item.get("status", "candidate") == "candidate" for item in items))
+
     def test_updates_evidence_status_and_linked_blocks(self):
         request = make_request()
 
