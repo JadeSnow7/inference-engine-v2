@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     DASHSCOPE_APP_ID: str = ""
     ENABLE_BAILIAN_APP: bool = False
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    DEEPSEEK_V4_PRO_MODEL: str = "deepseek-v4-pro"
+    DEEPSEEK_V4_FLASH_MODEL: str = "deepseek-v4-flash"
     MODEL_NAME: str = "qwen3.6-plus"
     SECRET_KEY: str = Field(default="", validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET")) if Field else ""
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -39,6 +43,10 @@ class Settings(BaseSettings):
             self.DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", self.DASHSCOPE_BASE_URL)
             self.DASHSCOPE_APP_ID = os.getenv("DASHSCOPE_APP_ID", self.DASHSCOPE_APP_ID)
             self.ENABLE_BAILIAN_APP = os.getenv("ENABLE_BAILIAN_APP", "0").lower() in {"1", "true", "yes", "on"}
+            self.DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", self.DEEPSEEK_API_KEY)
+            self.DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", self.DEEPSEEK_BASE_URL)
+            self.DEEPSEEK_V4_PRO_MODEL = os.getenv("DEEPSEEK_V4_PRO_MODEL", self.DEEPSEEK_V4_PRO_MODEL)
+            self.DEEPSEEK_V4_FLASH_MODEL = os.getenv("DEEPSEEK_V4_FLASH_MODEL", self.DEEPSEEK_V4_FLASH_MODEL)
             self.MODEL_NAME = os.getenv("MODEL_NAME", self.MODEL_NAME)
             self.SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("JWT_SECRET") or ""
             if not self.SECRET_KEY:
@@ -76,6 +84,14 @@ class Settings(BaseSettings):
     @property
     def bailian_app_configured(self) -> bool:
         return bool(self.ENABLE_BAILIAN_APP and self.DASHSCOPE_API_KEY and self.DASHSCOPE_APP_ID)
+
+    @property
+    def deepseek_configured(self) -> bool:
+        return bool(self.DEEPSEEK_API_KEY)
+
+    @property
+    def editing_model_configured(self) -> bool:
+        return bool(self.DEEPSEEK_API_KEY or self.DASHSCOPE_API_KEY)
 
     @property
     def active_ai_provider(self) -> str:

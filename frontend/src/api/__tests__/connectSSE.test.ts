@@ -120,6 +120,33 @@ describe('connectSSE', () => {
     expect(onError).toHaveBeenCalledWith('轻微错误')
   })
 
+  it('reports an error when the stream closes without a terminal event', async () => {
+    const onError = vi.fn()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        makeResponse('data: {"type":"stage","stage":"路由中"}\n\n'),
+      ),
+    )
+
+    connectSSE(
+      '测试',
+      {
+        onStage: vi.fn(),
+        onPapers: vi.fn(),
+        onGaps: vi.fn(),
+        onToken: vi.fn(),
+        onDone: vi.fn(),
+        onError,
+      },
+    )
+
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith('生成连接已提前结束，请重试')
+    })
+  })
+
   it('reads X-Session-Id and forwards it to handlers', async () => {
     const onSessionId = vi.fn()
     const onDone = vi.fn()

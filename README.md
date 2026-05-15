@@ -67,10 +67,15 @@ export ENABLE_LOCAL_RAG=1
 Frontend:
 
 ```bash
-cd frontend
-npm run test -- --run
-npm run build
+make test-frontend
+
+# Full local frontend checks still require a compatible host Node/npm:
+cd frontend && npm run lint && npm run build
 ```
+
+`make test-frontend` runs the editing workflow Vitest coverage in the Node 20
+Docker image `inference-engine-frontend-build:verify` and does not use host
+`frontend/node_modules`.
 
 Backend targeted checks used by recent integration work:
 

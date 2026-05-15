@@ -153,10 +153,18 @@ npm run dev
 Verification:
 
 ```bash
+# From the repository root:
+make test-frontend
+
+# Host Node/npm checks require Node 20 or newer:
+cd frontend
 npm run lint
-npm run test -- --run
 npm run build
 ```
+
+`make test-frontend` uses the Node 20 Docker image
+`inference-engine-frontend-build:verify` for the editing workflow Vitest files
+and does not depend on host `frontend/node_modules`.
 
 Production frontend architecture:
 

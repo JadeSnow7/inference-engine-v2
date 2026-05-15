@@ -1,4 +1,4 @@
-export type EventType = 'stage' | 'papers' | 'gaps' | 'references' | 'token' | 'done' | 'error'
+export type EventType = 'stage' | 'papers' | 'gaps' | 'references' | 'editing_stage' | 'editing_patch' | 'editing_gate' | 'token' | 'done' | 'error'
 
 export interface SSEEvent {
   type: EventType
