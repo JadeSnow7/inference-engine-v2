@@ -64,6 +64,21 @@ class LibraryApiTest(unittest.TestCase):
         self.assertTrue(all(item["type"] == "norm" for item in items))
         self.assertTrue(all("hust" in item["title"].lower() or "hust" in str(item.get("venue", "")).lower() for item in items))
 
+    def test_filters_evidence_by_status(self):
+        request = make_request()
+        self.run_async(update_evidence(
+            "norm-hust-2026",
+            EvidenceUpdateRequest(status="verified"),
+            request,
+            user_id="alice@hust.edu.cn",
+        ))
+
+        response = self.run_async(list_evidence(request, status="verified", user_id="alice@hust.edu.cn"))
+
+        items = response_data(response)["items"]
+        self.assertTrue(items)
+        self.assertTrue(all(item.get("status") == "verified" for item in items))
+
     def test_updates_evidence_status_and_linked_blocks(self):
         request = make_request()
 

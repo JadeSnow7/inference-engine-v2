@@ -38,6 +38,7 @@ async def list_evidence(
     request: Request,
     q: str | None = None,
     type: str | None = None,
+    status: str | None = None,
     user_id: str = Depends(get_current_user_id),
 ):
     items = await _store(request).list_evidence(user_id)
@@ -45,6 +46,8 @@ async def list_evidence(
         items = [item for item in items if _matches_query(item, q)]
     if type:
         items = [item for item in items if item.get("type") == type]
+    if status:
+        items = [item for item in items if item.get("status") == status]
     return ok({"items": items})
 
 
