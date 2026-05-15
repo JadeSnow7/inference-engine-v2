@@ -4,12 +4,10 @@ Guidance for Codex and other coding agents working in this repository.
 
 ## Project Boundaries
 
-ScholarScript is deployed from two components:
+Production consists of `backend/` and `frontend/`. The archived `academic-workbench-fe/` prototype has been removed from this repository; historical references should not be used for production development, deployment checks, or acceptance testing.
 
 - `backend/`: FastAPI, Redis-backed persistence, SSE chat/writing APIs, optional local GraphRAG.
 - `frontend/`: the only production React/Vite frontend.
-
-`academic-workbench-fe/` is an archived prototype. Do not implement features there unless the user explicitly asks for prototype archaeology.
 
 ## Backend
 

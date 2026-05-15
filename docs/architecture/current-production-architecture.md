@@ -4,11 +4,10 @@ Date: 2026-05-13
 
 ## Deployment Boundary
 
-Production consists of `backend/` and `frontend/`.
+Production consists of `backend/` and `frontend/`. The archived `academic-workbench-fe/` prototype has been removed from this repository; historical references should not be used for production development, deployment checks, or acceptance testing.
 
 - `backend/` exposes FastAPI routes, Redis-backed stores, SSE generation, writing analysis, and optional local GraphRAG.
 - `frontend/` is the only production React/Vite UI.
-- `academic-workbench-fe/` is archived prototype code and is outside the production boundary.
 
 ## Backend Runtime
 
