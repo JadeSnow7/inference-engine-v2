@@ -121,6 +121,10 @@ class DocumentsApiTest(unittest.TestCase):
                 DocumentCreateRequest(
                     title="Versioned document",
                     blocks=[{"id": "intro", "type": "paragraph", "text": "First draft."}],
+                    metadata={
+                        "source": "manual",
+                        "courseStage": "draft",
+                    },
                 ),
                 self.request,
                 user_id="alice@hust.edu.cn",
@@ -130,13 +134,24 @@ class DocumentsApiTest(unittest.TestCase):
         version = self.run_async(
             create_version(
                 created["id"],
-                VersionCreateRequest(label="First draft"),
+                VersionCreateRequest(
+                    label="First draft",
+                    metadata={
+                        "reviewItemIds": ["review-1"],
+                        "acceptedChangeCount": 2,
+                        "source": "review_accept",
+                    },
+                ),
                 self.request,
                 user_id="alice@hust.edu.cn",
             )
         )
         self.assertEqual(version.status_code, 201)
         version_id = response_data(version)["id"]
+        self.assertEqual(response_data(version)["metadata"]["reviewItemIds"], ["review-1"])
+        self.assertEqual(response_data(version)["metadata"]["acceptedChangeCount"], 2)
+        self.assertEqual(response_data(version)["metadata"]["source"], "review_accept")
+        self.assertEqual(response_data(version)["metadata"]["courseStage"], "draft")
 
         self.run_async(
             update_document(
