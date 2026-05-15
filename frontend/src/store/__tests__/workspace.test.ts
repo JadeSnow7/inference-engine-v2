@@ -859,4 +859,122 @@ describe('useWorkspaceStore', () => {
 
     expect(useWorkspaceStore.getState().reviewItems).toEqual([])
   })
+
+  it('converts current suggestion into a pending review item', () => {
+    const store = useWorkspaceStore.getState()
+    store.startDocumentToolRun('expand', 'block-intro-1')
+    store.setCurrentSuggestion({
+      id: 'suggestion-1',
+      title: 'AI 生成的修改建议',
+      summary: 'Improve clarity',
+      targetBlockIds: ['b1'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'Improve clarity',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['Improve clarity'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+
+    expect(useWorkspaceStore.getState().reviewItems[0]).toMatchObject({
+      documentId: 'doc-1',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      reason: 'Improve clarity',
+    })
+  })
+
+  it('routes finished AI generation into the review queue', () => {
+    const store = useWorkspaceStore.getState()
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Generated paragraph for review.')
+    store.finishAIRunAsSuggestion()
+
+    const state = useWorkspaceStore.getState()
+    expect(state.currentSuggestion?.changes[0].revisedText).toBe('Generated paragraph for review.')
+    expect(state.reviewItems[0]).toMatchObject({
+      documentId: 'local-draft',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      reason: state.currentSuggestion?.reason,
+    })
+    expect(state.rightPanelMode).toBe('review')
+  })
+
+  it('replaces an existing suggestion review item with the same id', () => {
+    const store = useWorkspaceStore.getState()
+    store.setCurrentSuggestion({
+      id: 'suggestion-duplicate',
+      title: 'AI 生成的修改建议',
+      summary: 'First summary',
+      targetBlockIds: ['b1'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'First reason',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['First reason'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+    store.setCurrentSuggestion({
+      id: 'suggestion-duplicate',
+      title: 'AI 生成的修改建议',
+      summary: 'Updated summary',
+      targetBlockIds: ['b2'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'Updated reason',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['Updated reason'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+    expect(useWorkspaceStore.getState().reviewItems[0]).toMatchObject({
+      id: 'review-suggestion-duplicate',
+      reason: 'Updated reason',
+      targetBlockIds: ['b2'],
+    })
+  })
+
+  it('preserves AI run mode kind and metadata when generation finishes', () => {
+    const store = useWorkspaceStore.getState()
+    const activeVersionId = useWorkspaceStore.getState().activeVersionId
+    const targetBlock = store.startDocumentToolRun('expand', 'block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Expanded paragraph for review.')
+    store.finishAIRunAsSuggestion()
+
+    const state = useWorkspaceStore.getState()
+    const reviewItem = state.reviewItems[0]
+    expect(reviewItem).toMatchObject({
+      documentId: 'local-draft',
+      kind: 'expand',
+      versionBeforeId: activeVersionId,
+      versionAfterId: null,
+      createdAt: state.currentSuggestion?.createdAt,
+      updatedAt: state.currentSuggestion?.createdAt,
+    })
+    expect(reviewItem.beforeBlocks[0].id).toBe('block-intro-1')
+    expect(reviewItem.afterBlocks[0].content).toBe('Expanded paragraph for review.')
+    expect(reviewItem.changes[0].revisedText).toBe('Expanded paragraph for review.')
+  })
 })

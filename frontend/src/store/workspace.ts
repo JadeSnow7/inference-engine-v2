@@ -130,6 +130,7 @@ interface WorkspaceState {
   setReviewItems: (items: ReviewItem[]) => void
   upsertReviewItem: (item: ReviewItem) => void
   setReviewItemStatus: (id: string, status: ReviewItem['status'], versionAfterId?: string | null) => void
+  enqueueCurrentSuggestionAsReviewItem: (documentId: string) => void
   clearRagArtifacts: () => void
   nextChange: () => void
   previousChange: () => void
@@ -538,6 +539,55 @@ function createSuggestionFromGeneratedText(
     reasons: [...metadata.reasons],
     reasoningSteps: [...metadata.reasoningSteps],
   }
+}
+
+function reviewKindFromAIRunMode(mode: AIRunMode): ReviewItem['kind'] {
+  if (mode === 'expand') return 'expand'
+  if (mode === 'logic_check') return 'logic_check'
+  if (mode === 'citation_enhance') return 'citation'
+  return 'rewrite'
+}
+
+function createReviewItemFromSuggestion(
+  suggestion: DocumentSuggestion,
+  options: {
+    documentId: string
+    aiRunMode: AIRunMode
+    versionBeforeId: string | null
+    timestamp?: string
+  },
+): ReviewItem {
+  const timestamp = options.timestamp ?? new Date().toISOString()
+
+  return {
+    id: `review-${suggestion.id}`,
+    documentId: options.documentId,
+    source: 'document_tool',
+    kind: reviewKindFromAIRunMode(options.aiRunMode),
+    status: 'pending',
+    targetBlockIds: [...suggestion.targetBlockIds],
+    beforeBlocks: suggestion.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: suggestion.afterBlocks.map(cloneDocumentBlock),
+    changes: suggestion.changes.map(change => ({ ...change })),
+    reason: suggestion.reason || suggestion.summary,
+    evidenceIds: [],
+    versionBeforeId: options.versionBeforeId,
+    versionAfterId: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function upsertReviewItemInList(items: ReviewItem[], item: ReviewItem): ReviewItem[] {
+  const reviewItem = cloneReviewItem(item)
+  const existingIndex = items.findIndex(entry => entry.id === reviewItem.id)
+  if (existingIndex === -1) {
+    return [reviewItem, ...items]
+  }
+
+  const next = [...items]
+  next[existingIndex] = reviewItem
+  return next
 }
 
 function buildUpdatedBlocksFromSuggestion(blocks: DocumentBlock[], suggestion: DocumentSuggestion): DocumentBlock[] {
@@ -1194,6 +1244,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     }
 
+    const reviewItem = createReviewItemFromSuggestion(suggestion, {
+      documentId: state.activeDocumentId ?? 'local-draft',
+      aiRunMode: state.aiRunMode,
+      versionBeforeId: state.activeVersionId,
+      timestamp: suggestion.createdAt,
+    })
+
     return {
       aiRunStatus: 'done',
       aiStageLabel: state.aiRunMode === 'citation_enhance' ? '引用增强完成' : '生成完成',
@@ -1202,6 +1259,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       currentChangeIndex: 0,
       aiRunMode: 'rewrite' as AIRunMode,
       pendingBeforeBlocks: [],
+      reviewItems: upsertReviewItemInList(state.reviewItems, reviewItem),
+      rightPanelMode: 'review',
     }
   }),
   failAIRunWithFallback: (message) => set({
@@ -1256,14 +1315,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   })),
   setReviewItems: (items) => set({ reviewItems: items.map(cloneReviewItem) }),
   upsertReviewItem: (item) => set(state => {
-    const reviewItem = cloneReviewItem(item)
-    const existingIndex = state.reviewItems.findIndex(entry => entry.id === item.id)
-    if (existingIndex === -1) {
-      return { reviewItems: [reviewItem, ...state.reviewItems] }
-    }
-    const next = [...state.reviewItems]
-    next[existingIndex] = reviewItem
-    return { reviewItems: next }
+    return { reviewItems: upsertReviewItemInList(state.reviewItems, item) }
   }),
   setReviewItemStatus: (id, status, versionAfterId) => set(state => ({
     reviewItems: state.reviewItems.map(item => (
@@ -1272,6 +1324,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         : item
     )),
   })),
+  enqueueCurrentSuggestionAsReviewItem: (documentId) => set(state => {
+    if (!state.currentSuggestion) return {}
+    const reviewItem = createReviewItemFromSuggestion(state.currentSuggestion, {
+      documentId,
+      aiRunMode: 'rewrite',
+      versionBeforeId: state.activeVersionId,
+    })
+    return { reviewItems: upsertReviewItemInList(state.reviewItems, reviewItem) }
+  }),
   clearRagArtifacts: () => set({
     ragPapers: [],
     ragGaps: [],

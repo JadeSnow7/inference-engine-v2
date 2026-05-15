@@ -3,6 +3,7 @@ import { useWorkspaceStore } from '../../store/workspace'
 
 export function ReviewQueuePanel() {
   const reviewItems = useWorkspaceStore(state => state.reviewItems)
+  const setReviewItemStatus = useWorkspaceStore(state => state.setReviewItemStatus)
 
   if (reviewItems.length === 0) {
     return (
@@ -27,6 +28,17 @@ export function ReviewQueuePanel() {
           {item.changes[0]?.revisedText && (
             <p className="mt-3 line-clamp-3 text-xs leading-5 text-scholar-text-secondary">{item.changes[0].revisedText}</p>
           )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-scholar-primary" onClick={() => setReviewItemStatus(item.id, 'accepted')}>
+              接受
+            </button>
+            <button type="button" className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-scholar-text-secondary" onClick={() => setReviewItemStatus(item.id, 'deferred')}>
+              稍后
+            </button>
+            <button type="button" className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600" onClick={() => setReviewItemStatus(item.id, 'rejected')}>
+              拒绝
+            </button>
+          </div>
         </article>
       ))}
     </div>
