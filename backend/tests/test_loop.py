@@ -1,4 +1,5 @@
 import os
+import asyncio
 import unittest
 
 os.environ.setdefault("DASHSCOPE_API_KEY", "test-key")
@@ -26,6 +27,35 @@ class FakeProfileStore:
 
 
 class LoopSmokeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_main_loop_falls_back_to_paragraph_when_router_times_out(self) -> None:
+        from core import loop as loop_module
+
+        conv = FakeConversationManager()
+        profile_store = FakeProfileStore()
+        handled_scenes: list[str] = []
+
+        async def timed_out_router(user_input: str) -> str:
+            raise asyncio.TimeoutError
+
+        async def fake_pipeline(*args, **kwargs):
+            yield fmt(SSEEvent(type=EventType.TOKEN, content="兜底段落"))
+
+        original_router = loop_module.route_scene
+        original_handler = loop_module._get_pipeline_handler
+        loop_module.route_scene = timed_out_router
+        loop_module._get_pipeline_handler = lambda scene: handled_scenes.append(scene) or fake_pipeline
+        try:
+            chunks = []
+            async for chunk in loop_module.main_loop("u-timeout", "sess-timeout", "测试消息", conv, profile_store, object()):
+                chunks.append(chunk)
+        finally:
+            loop_module.route_scene = original_router
+            loop_module._get_pipeline_handler = original_handler
+
+        self.assertEqual(handled_scenes, ["paragraph"])
+        self.assertTrue(any('"type": "done"' in chunk for chunk in chunks))
+        self.assertEqual(conv.saved, [("u-timeout", "sess-timeout", "测试消息", "兜底段落", "paragraph", "saved")])
+
     async def test_main_loop_saves_accumulated_tokens_on_success(self) -> None:
         from core import loop as loop_module
 

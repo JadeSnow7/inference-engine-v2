@@ -12,13 +12,16 @@ type KnowledgeNodeData = {
   label: string
 }
 
-export function KnowledgeGraph() {
+export function KnowledgeGraph({ visibleNodeIds }: { visibleNodeIds?: Set<string> }) {
   const selectedGraphNodeId = useWorkspaceStore(state => state.selectedGraphNodeId)
   const setSelectedGraphNode = useWorkspaceStore(state => state.setSelectedGraphNode)
   const workspaceGraphNodes = useWorkspaceStore(state => state.graphNodes)
   const workspaceGraphEdges = useWorkspaceStore(state => state.graphEdges)
 
-  const nodes = useMemo<Node<KnowledgeNodeData>[]>(() => workspaceGraphNodes.map(node => {
+  const visibleGraphNodes = useMemo(() => (
+    visibleNodeIds ? workspaceGraphNodes.filter(node => visibleNodeIds.has(node.id)) : workspaceGraphNodes
+  ), [visibleNodeIds, workspaceGraphNodes])
+  const nodes = useMemo<Node<KnowledgeNodeData>[]>(() => visibleGraphNodes.map(node => {
     const selected = node.id === selectedGraphNodeId
     const isCore = node.type === 'core'
     return {
@@ -36,20 +39,22 @@ export function KnowledgeGraph() {
         fontSize: isCore ? 14 : 12,
       },
     }
-  }), [selectedGraphNodeId, workspaceGraphNodes])
+  }), [selectedGraphNodeId, visibleGraphNodes])
 
-  const edges = useMemo<Edge[]>(() => workspaceGraphEdges.map(edge => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    label: edge.label,
-    animated: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId,
-    labelStyle: { fill: '#646a73', fontSize: 10, fontWeight: 600 },
-    style: {
-      stroke: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId ? '#3370ff' : '#a8b5ff',
-      strokeWidth: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId ? 2 : 1.3,
-    },
-  })), [selectedGraphNodeId, workspaceGraphEdges])
+  const edges = useMemo<Edge[]>(() => workspaceGraphEdges
+    .filter(edge => !visibleNodeIds || (visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)))
+    .map(edge => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label,
+      animated: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId,
+      labelStyle: { fill: '#646a73', fontSize: 10, fontWeight: 600 },
+      style: {
+        stroke: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId ? '#3370ff' : '#a8b5ff',
+        strokeWidth: edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId ? 2 : 1.3,
+      },
+    })), [selectedGraphNodeId, visibleNodeIds, workspaceGraphEdges])
 
   return (
     <div className="h-[340px] bg-gradient-to-br from-white via-[#fbfcff] to-blue-50/70">

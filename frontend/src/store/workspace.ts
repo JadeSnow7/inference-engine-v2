@@ -4,6 +4,7 @@ import {
   createDocumentVersion as createBackendDocumentVersion,
   fetchDocument,
   fetchDocumentVersions,
+  listDocuments,
   restoreDocumentVersion as restoreBackendDocumentVersion,
   updateDocument,
   type PersistedDocument,
@@ -14,6 +15,12 @@ import {
   fetchReviewItems,
   updateReviewItem as updateBackendReviewItem,
 } from '../api/reviewItems'
+import type {
+  EditingGateReport,
+  EditingPatchItem,
+  EditingReferenceItem,
+  EditingStageItem,
+} from '../api/editing'
 import { fetchSessionArtifact, fetchSessionMessages, type MessageItem } from '../api/sessions'
 import { workspaceMock } from '../mocks/workspaceMock'
 import type { GapItem, PaperItem, ReferenceEventItem } from '../types/events'
@@ -57,6 +64,12 @@ interface DocumentToolRequest {
 }
 
 type AIRunMode = 'rewrite' | DocumentToolMode | 'citation_enhance'
+export type InlineMarkdownCommand = 'bold' | 'italic' | 'list' | 'link'
+
+export interface InlineMarkdownSelection {
+  start: number
+  end: number
+}
 
 interface RestoreNotice {
   versionTitle: string
@@ -97,6 +110,10 @@ interface WorkspaceState {
   graphEdges: WorkspaceGraphEdge[]
   references: ReferenceItem[]
   reviewItems: ReviewItem[]
+  currentEditingJobId: string | null
+  editingStages: EditingStageItem[]
+  editingPatches: EditingPatchItem[]
+  editingGateReport: EditingGateReport | null
   setActiveConversation: (id: string) => void
   setActiveVersion: (id: string) => void
   startVersionPreview: (id: string) => void
@@ -111,6 +128,13 @@ interface WorkspaceState {
   setAIRunStatus: (status: AIRunStatus) => void
   setAIStage: (status: AIRunStatus, label: string) => void
   setSaveStatus: (status: WorkspaceSaveStatus) => void
+  bootstrapWorkspaceDocument: () => Promise<void>
+  createBlankDocument: () => Promise<void>
+  updateDocumentBlock: (blockId: string, patch: Partial<DocumentBlock>) => void
+  insertDocumentBlock: (afterBlockId: string | null, block: DocumentBlock) => void
+  deleteDocumentBlock: (blockId: string) => void
+  toggleBlockType: (blockId: string) => void
+  applyInlineMarkdown: (command: InlineMarkdownCommand, selection?: InlineMarkdownSelection) => void
   loadDocument: (documentId: string) => Promise<void>
   saveCurrentDocument: () => Promise<void>
   createCurrentDocumentVersion: (label?: string) => Promise<void>
@@ -137,6 +161,13 @@ interface WorkspaceState {
   setReviewItemStatus: (id: string, status: ReviewItem['status'], versionAfterId?: string | null) => void
   acceptReviewItem: (id: string) => void
   enqueueCurrentSuggestionAsReviewItem: (documentId: string) => void
+  startEditingRun: (input: { jobId: string; stages: EditingStageItem[]; targetBlockId?: string | null }) => void
+  applyEditingStage: (stage: EditingStageItem) => void
+  applyEditingPatch: (patch: EditingPatchItem) => void
+  applyEditingGate: (gate: EditingGateReport) => void
+  upsertEditingReferences: (references: EditingReferenceItem[]) => void
+  finishEditingRun: () => void
+  failEditingRun: (message: string) => void
   clearRagArtifacts: () => void
   nextChange: () => void
   previousChange: () => void
@@ -282,11 +313,52 @@ function initialWorkspaceState() {
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
     reviewItems: [],
+    currentEditingJobId: null,
+    editingStages: [],
+    editingPatches: [],
+    editingGateReport: null,
   }
 }
 
 function documentTitleFromBlocks(blocks: DocumentBlock[]): string {
   return blocks.find(block => block.type === 'heading')?.content.trim() || '研究工作台文档'
+}
+
+function createBlockId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 100000)}`
+}
+
+function createBlankDocumentBlocks(): DocumentBlock[] {
+  return [
+    {
+      id: createBlockId('blank-title'),
+      type: 'heading',
+      headingLevel: 1,
+      content: '未命名研究草稿',
+    },
+    {
+      id: createBlockId('blank-paragraph'),
+      type: 'paragraph',
+      content: '',
+    },
+  ]
+}
+
+function createCurrentDocumentSnapshot(
+  documentBlocks: DocumentBlock[],
+  label = '当前草稿',
+): DocumentVersionSnapshot {
+  const createdAt = new Date().toISOString()
+
+  return {
+    id: `current-document-${Date.now()}`,
+    label,
+    summary: documentTitleFromBlocks(documentBlocks),
+    updatedAt: createdAt,
+    isCurrent: true,
+    createdAt,
+    documentBlocks: cloneDocumentBlocksFrom(documentBlocks),
+  }
 }
 
 function messageFromError(error: unknown): string {
@@ -310,6 +382,48 @@ function versionSnapshotFromApi(
 
 function documentBlocksFromApi(document: PersistedDocument): DocumentBlock[] {
   return cloneDocumentBlocksFrom(document.blocks)
+}
+
+function formatInlineMarkdown(
+  content: string,
+  command: InlineMarkdownCommand,
+  selection: InlineMarkdownSelection | undefined,
+): string {
+  if (command === 'list') {
+    return content
+      .split('\n')
+      .map(line => {
+        if (line.trim().length === 0) return line
+        return line.trimStart().startsWith('- ') ? line : `- ${line}`
+      })
+      .join('\n')
+  }
+
+  const start = Math.max(0, Math.min(selection?.start ?? 0, content.length))
+  const end = Math.max(start, Math.min(selection?.end ?? content.length, content.length))
+  const selected = content.slice(start, end)
+  const fallbackText = command === 'link' ? '链接文本' : '文本'
+  const text = selected || fallbackText
+  const wrapped = command === 'bold'
+    ? `**${text}**`
+    : command === 'italic'
+      ? `*${text}*`
+      : `[${text}](https://)`
+
+  return `${content.slice(0, start)}${wrapped}${content.slice(end)}`
+}
+
+function markBlocksModified(
+  documentBlocks: DocumentBlock[],
+  selectedBlockId: string | null,
+): Partial<WorkspaceState> {
+  return {
+    documentBlocks,
+    selectedBlockId,
+    saveStatus: 'modified',
+    previewVersionId: null,
+    documentErrorMessage: '',
+  }
 }
 
 function getLocalStorage(): Storage | null {
@@ -626,6 +740,57 @@ function hasApplicableDocumentPatch(item: ReviewItem, blocks: DocumentBlock[]): 
     item.afterBlocks.some(block => blockIds.has(block.id))
     || item.changes.some(change => blockIds.has(change.blockId))
   )
+}
+
+function createSuggestionFromEditingPatches(
+  jobId: string,
+  patches: EditingPatchItem[],
+  documentBlocks: DocumentBlock[],
+): DocumentSuggestion | null {
+  if (patches.length === 0) return null
+
+  const blockIds = Array.from(new Set(patches.map(patch => patch.block_id)))
+  const beforeBlocks = blockIds
+    .map(blockId => documentBlocks.find(block => block.id === blockId))
+    .filter((block): block is DocumentBlock => !!block)
+    .map(cloneDocumentBlock)
+
+  if (beforeBlocks.length === 0) return null
+
+  const latestPatchByBlockId = new Map<string, EditingPatchItem>()
+  patches.forEach(patch => latestPatchByBlockId.set(patch.block_id, patch))
+
+  const afterBlocks = beforeBlocks.map(block => ({
+    ...cloneDocumentBlock(block),
+    content: latestPatchByBlockId.get(block.id)?.revised_text ?? block.content,
+  }))
+
+  return {
+    id: `editing-suggestion-${jobId}`,
+    title: 'DeepSeek V4 编辑建议',
+    summary: '已生成可逐条审阅的学术编辑补丁。',
+    targetBlockIds: beforeBlocks.map(block => block.id),
+    operation: 'replace_blocks',
+    beforeBlocks,
+    afterBlocks,
+    reason: 'DeepSeek V4 学术编辑流水线生成。',
+    confidence: Math.max(0.5, Math.min(0.95, Math.max(...patches.map(patch => patch.confidence ?? 0.75)))),
+    createdAt: new Date().toISOString(),
+    changes: patches.map((patch): SuggestionChange => ({
+      id: patch.id,
+      blockId: patch.block_id,
+      type: 'modify',
+      originalText: patch.original_text,
+      revisedText: patch.revised_text,
+      reason: patch.reason,
+    })),
+    reasons: patches.map(patch => `${patch.reason}：${patch.risk_level ?? 'low'} risk`),
+    reasoningSteps: [
+      '创建 DeepSeek V4 编辑任务。',
+      '按阶段接收结构化补丁。',
+      '等待质量门禁和人工审阅后再合并正文。',
+    ],
+  }
 }
 
 function buildUpdatedBlocksFromSuggestion(blocks: DocumentBlock[], suggestion: DocumentSuggestion): DocumentBlock[] {
@@ -1015,6 +1180,139 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setAIRunStatus: (status) => set({ aiRunStatus: status }),
   setAIStage: (status, label) => set({ aiRunStatus: status, aiStageLabel: label }),
   setSaveStatus: (status) => set({ saveStatus: status }),
+  bootstrapWorkspaceDocument: async () => {
+    if (get().activeSessionId || get().restoreSessionNotice) return
+
+    set({ saveStatus: 'saving', documentErrorMessage: '' })
+    try {
+      const documents = await listDocuments()
+      if (get().activeSessionId || get().restoreSessionNotice) return
+      const recentDocument = documents[0]
+      if (recentDocument) {
+        await get().loadDocument(recentDocument.id)
+        return
+      }
+
+      await get().createBlankDocument()
+    } catch (error) {
+      const message = messageFromError(error)
+      if (get().activeSessionId || get().restoreSessionNotice) {
+        set({ documentErrorMessage: message })
+        return
+      }
+      await get().createBlankDocument()
+      set({
+        documentErrorMessage: message || get().documentErrorMessage,
+      })
+    }
+  },
+  createBlankDocument: async () => {
+    const documentBlocks = createBlankDocumentBlocks()
+    const title = documentTitleFromBlocks(documentBlocks)
+    set({
+      activeDocumentId: null,
+      activeVersionId: null,
+      documentBlocks,
+      documentVersions: [createCurrentDocumentSnapshot(documentBlocks)],
+      selectedBlockId: documentBlocks[1]?.id ?? documentBlocks[0]?.id ?? null,
+      currentSuggestion: null,
+      currentChangeIndex: 0,
+      previewVersionId: null,
+      isRestoringVersion: false,
+      saveStatus: 'saving',
+      documentErrorMessage: '',
+    })
+
+    try {
+      const document = await createDocument({ title, blocks: documentBlocks })
+      const persistedBlocks = documentBlocksFromApi(document)
+      const snapshot = createCurrentDocumentSnapshot(persistedBlocks, '当前草稿')
+      set({
+        activeDocumentId: document.id,
+        activeVersionId: snapshot.id,
+        documentBlocks: persistedBlocks,
+        documentVersions: [snapshot],
+        selectedBlockId: persistedBlocks[1]?.id ?? persistedBlocks[0]?.id ?? null,
+        saveStatus: 'saved',
+        documentErrorMessage: '',
+      })
+    } catch (error) {
+      const activeVersionId = get().documentVersions[0]?.id ?? null
+      const persisted = persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, get().documentVersions, activeVersionId))
+      set({
+        saveStatus: persisted ? 'local-saved' : 'modified',
+        documentErrorMessage: messageFromError(error),
+      })
+    }
+  },
+  updateDocumentBlock: (blockId, patch) => set((state) => {
+    const documentBlocks = state.documentBlocks.map(block => (
+      block.id === blockId
+        ? cloneDocumentBlock({ ...block, ...patch, id: block.id })
+        : cloneDocumentBlock(block)
+    ))
+
+    return markBlocksModified(documentBlocks, blockId)
+  }),
+  insertDocumentBlock: (afterBlockId, block) => set((state) => {
+    const documentBlocks = state.documentBlocks.map(cloneDocumentBlock)
+    const insertAt = afterBlockId
+      ? documentBlocks.findIndex(existing => existing.id === afterBlockId) + 1
+      : documentBlocks.length
+    const safeIndex = insertAt <= 0 ? documentBlocks.length : insertAt
+    documentBlocks.splice(safeIndex, 0, cloneDocumentBlock(block))
+
+    return markBlocksModified(documentBlocks, block.id)
+  }),
+  deleteDocumentBlock: (blockId) => set((state) => {
+    if (state.documentBlocks.length <= 1) {
+      const documentBlocks = state.documentBlocks.map(block => (
+        block.id === blockId ? { ...cloneDocumentBlock(block), content: '' } : cloneDocumentBlock(block)
+      ))
+      return markBlocksModified(documentBlocks, blockId)
+    }
+
+    const removedIndex = state.documentBlocks.findIndex(block => block.id === blockId)
+    const documentBlocks = state.documentBlocks
+      .filter(block => block.id !== blockId)
+      .map(cloneDocumentBlock)
+    const nextSelectedBlockId = documentBlocks[Math.max(0, Math.min(removedIndex, documentBlocks.length - 1))]?.id ?? null
+
+    return markBlocksModified(documentBlocks, nextSelectedBlockId)
+  }),
+  toggleBlockType: (blockId) => set((state) => {
+    const documentBlocks: DocumentBlock[] = state.documentBlocks.map((block, index) => {
+      if (block.id !== blockId) return cloneDocumentBlock(block)
+      if (block.type === 'heading') {
+        const paragraphBlock = cloneDocumentBlock(block)
+        delete paragraphBlock.headingLevel
+        return { ...paragraphBlock, type: 'paragraph' as const }
+      }
+
+      return {
+        ...cloneDocumentBlock(block),
+        type: 'heading' as const,
+        headingLevel: index === 0 ? 1 : 2 as const,
+      }
+    })
+
+    return markBlocksModified(documentBlocks, blockId)
+  }),
+  applyInlineMarkdown: (command, selection) => set((state) => {
+    const selectedBlockId = state.selectedBlockId
+      ?? state.documentBlocks.find(block => block.type === 'paragraph')?.id
+      ?? state.documentBlocks[0]?.id
+      ?? null
+    if (!selectedBlockId) return state
+
+    const documentBlocks = state.documentBlocks.map(block => (
+      block.id === selectedBlockId
+        ? { ...cloneDocumentBlock(block), content: formatInlineMarkdown(block.content, command, selection) }
+        : cloneDocumentBlock(block)
+    ))
+
+    return markBlocksModified(documentBlocks, selectedBlockId)
+  }),
   loadDocument: async (documentId) => {
     set({ saveStatus: 'saving', documentErrorMessage: '' })
     try {
@@ -1023,13 +1321,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         fetchDocumentVersions(documentId),
         fetchReviewItems(documentId).catch(() => ({ items: [] })),
       ])
-      const activeVersionId = versions[0]?.id ?? null
+      const documentBlocks = documentBlocksFromApi(document)
+      const documentVersions = versions.length > 0
+        ? versions.map((version, index) => versionSnapshotFromApi(version, index === 0))
+        : [createCurrentDocumentSnapshot(documentBlocks)]
+      const activeVersionId = documentVersions[0]?.id ?? null
       set({
         activeDocumentId: document.id,
         activeVersionId,
-        documentBlocks: documentBlocksFromApi(document),
-        documentVersions: versions.map((version, index) => versionSnapshotFromApi(version, index === 0)),
         reviewItems: reviewResponse.items.map(cloneReviewItem),
+        documentBlocks,
+        documentVersions,
         currentSuggestion: null,
         currentChangeIndex: 0,
         previewVersionId: null,
@@ -1462,6 +1764,97 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       void createBackendReviewItem(reviewItemToPersist).then(item => get().upsertReviewItem(item)).catch(() => undefined)
     }
   },
+  startEditingRun: ({ jobId, stages, targetBlockId }) => set((state) => {
+    const targetBlock = (targetBlockId
+      ? state.documentBlocks.find(block => block.id === targetBlockId && block.type === 'paragraph')
+      : null)
+      ?? state.documentBlocks.find(block => block.id === state.selectedBlockId && block.type === 'paragraph')
+      ?? firstParagraphBlock(state.documentBlocks)
+
+    return {
+      currentEditingJobId: jobId,
+      editingStages: stages.map(stage => ({ ...stage })),
+      editingPatches: [],
+      editingGateReport: null,
+      selectedBlockId: targetBlock?.id ?? state.selectedBlockId,
+      pendingBeforeBlocks: targetBlock ? [cloneDocumentBlock(targetBlock)] : [],
+      currentSuggestion: null,
+      currentChangeIndex: 0,
+      aiRunStatus: 'retrieving',
+      aiStageLabel: '正在创建编辑任务',
+      aiErrorMessage: '',
+    }
+  }),
+  applyEditingStage: (stage) => set((state) => {
+    const existing = state.editingStages.some(item => item.stage_id === stage.stage_id)
+    const editingStages = existing
+      ? state.editingStages.map(item => item.stage_id === stage.stage_id ? { ...item, ...stage } : item)
+      : [...state.editingStages, { ...stage }]
+
+    return {
+      editingStages,
+      aiRunStatus: stage.status === 'running' ? 'reasoning' : state.aiRunStatus,
+      aiStageLabel: stage.label || state.aiStageLabel,
+    }
+  }),
+  applyEditingPatch: (patch) => set((state) => {
+    const editingPatches = mergeById(state.editingPatches, [{ ...patch }])
+    const currentSuggestion = createSuggestionFromEditingPatches(
+      state.currentEditingJobId ?? 'editing',
+      editingPatches,
+      state.documentBlocks,
+    )
+
+    return {
+      editingPatches,
+      currentSuggestion,
+      currentChangeIndex: 0,
+      aiRunStatus: 'generating',
+      aiStageLabel: '正在生成编辑补丁',
+    }
+  }),
+  applyEditingGate: (gate) => set(() => {
+    if (gate.status === 'fail') {
+      return {
+        editingGateReport: { ...gate, messages: [...gate.messages] },
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        aiRunStatus: 'error',
+        aiStageLabel: '质量门禁未通过',
+        aiErrorMessage: gate.messages.join('；') || '质量门禁未通过，已阻止合并。',
+      }
+    }
+
+    return {
+      editingGateReport: { ...gate, messages: [...gate.messages] },
+      aiRunStatus: 'done',
+      aiStageLabel: gate.status === 'pass' ? '质量门禁通过' : '质量门禁需复核',
+      aiErrorMessage: '',
+    }
+  }),
+  upsertEditingReferences: (references) => set((state) => ({
+    references: mergeById(state.references, references.map(reference => ({
+      id: reference.id,
+      title: reference.title,
+      year: reference.year,
+      venue: reference.source,
+      score: reference.score,
+      excerpt: reference.excerpt,
+      url: reference.url,
+      evidenceStatus: reference.status,
+    }))),
+  })),
+  finishEditingRun: () => set((state) => ({
+    aiRunStatus: state.editingGateReport?.status === 'fail' ? 'error' : 'done',
+    aiStageLabel: state.editingGateReport?.status === 'fail' ? '质量门禁未通过' : '编辑流程完成',
+  })),
+  failEditingRun: (message) => set({
+    aiRunStatus: 'error',
+    aiStageLabel: '编辑流程失败',
+    aiErrorMessage: message,
+    currentSuggestion: null,
+    currentChangeIndex: 0,
+  }),
   clearRagArtifacts: () => set({
     ragPapers: [],
     ragGaps: [],

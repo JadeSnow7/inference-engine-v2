@@ -46,6 +46,7 @@ describe('Writing page', () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: 'AI 写作' })).toBeInTheDocument()
+    expect(screen.getByTestId('writing-page')).toHaveClass('overflow-y-auto')
 
     fireEvent.change(screen.getByLabelText('待分析文本'), {
       target: { value: '本文研究大语言模型在教育领域中的应用。' },

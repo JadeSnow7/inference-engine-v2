@@ -6,6 +6,8 @@ import type { DocumentSuggestion, ReviewItem } from '../../types/workspace'
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
 const fetchDocument = vi.hoisted(() => vi.fn())
+const listDocuments = vi.hoisted(() => vi.fn())
+const createDocument = vi.hoisted(() => vi.fn())
 const updateDocument = vi.hoisted(() => vi.fn())
 const fetchDocumentVersions = vi.hoisted(() => vi.fn())
 const createDocumentVersion = vi.hoisted(() => vi.fn())
@@ -21,6 +23,8 @@ vi.mock('../../api/sessions', () => ({
 
 vi.mock('../../api/documents', () => ({
   fetchDocument: (...args: unknown[]) => fetchDocument(...args),
+  listDocuments: (...args: unknown[]) => listDocuments(...args),
+  createDocument: (...args: unknown[]) => createDocument(...args),
   updateDocument: (...args: unknown[]) => updateDocument(...args),
   fetchDocumentVersions: (...args: unknown[]) => fetchDocumentVersions(...args),
   createDocumentVersion: (...args: unknown[]) => createDocumentVersion(...args),
@@ -75,6 +79,8 @@ describe('useWorkspaceStore', () => {
     window.localStorage.removeItem(WORKBENCH_DRAFT_KEY)
     window.localStorage.removeItem(WORKBENCH_SNAPSHOT_KEY)
     fetchDocument.mockReset()
+    listDocuments.mockReset()
+    createDocument.mockReset()
     updateDocument.mockReset()
     fetchDocumentVersions.mockReset()
     createDocumentVersion.mockReset()
@@ -129,6 +135,70 @@ describe('useWorkspaceStore', () => {
     expect(updatedBlock?.content).toContain('依赖于手工设计的特征提取器')
     expect(updatedBlock?.content).toContain('泛化能力有限')
     expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+  })
+
+  it('stores editing patches as reviewable suggestions and accepts one patch', () => {
+    const targetBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(targetBlock).toBeDefined()
+
+    useWorkspaceStore.getState().startEditingRun({
+      jobId: 'edit-1',
+      stages: [{ stage_id: 'route_diagnosis', label: '路由诊断', status: 'pending' }],
+      targetBlockId: targetBlock!.id,
+    })
+    useWorkspaceStore.getState().applyEditingPatch({
+      id: 'patch-1',
+      stage_id: 'academic_enhance',
+      block_id: targetBlock!.id,
+      original_text: targetBlock!.content,
+      revised_text: '学术增强后的段落。',
+      reason: '学术增强',
+      risk_level: 'low',
+      confidence: 0.82,
+    })
+
+    expect(useWorkspaceStore.getState().editingPatches).toHaveLength(1)
+    expect(useWorkspaceStore.getState().currentSuggestion?.changes[0]).toEqual(expect.objectContaining({
+      blockId: targetBlock!.id,
+      revisedText: '学术增强后的段落。',
+    }))
+
+    useWorkspaceStore.getState().acceptCurrentChange()
+
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === targetBlock!.id)?.content)
+      .toBe('学术增强后的段落。')
+  })
+
+  it('clears editing suggestion when quality gate fails', () => {
+    const targetBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(targetBlock).toBeDefined()
+
+    useWorkspaceStore.getState().startEditingRun({
+      jobId: 'edit-fail',
+      stages: [],
+      targetBlockId: targetBlock!.id,
+    })
+    useWorkspaceStore.getState().applyEditingPatch({
+      id: 'patch-fail',
+      stage_id: 'originality_humanize',
+      block_id: targetBlock!.id,
+      original_text: targetBlock!.content,
+      revised_text: '降重后但忠实性失败的文本。',
+      reason: '降重',
+      risk_level: 'medium',
+      confidence: 0.61,
+    })
+    useWorkspaceStore.getState().applyEditingGate({
+      status: 'fail',
+      fidelity_score: 0.52,
+      semantic_similarity: 0.7,
+      citation_unresolved_count: 0,
+      messages: ['忠实性下降，禁止合并。'],
+    })
+
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+    expect(useWorkspaceStore.getState().aiRunStatus).toBe('error')
+    expect(useWorkspaceStore.getState().aiErrorMessage).toContain('忠实性下降')
   })
 
   it('acceptCurrentChange applies only the selected change and keeps remaining changes reviewable', () => {
@@ -633,6 +703,109 @@ describe('useWorkspaceStore', () => {
     }))
     expect(state.saveStatus).toBe('saved')
     expect(state.documentErrorMessage).toBe('')
+  })
+
+  it('bootstraps the most recently updated backend document into the workspace', async () => {
+    listDocuments.mockResolvedValue([
+      {
+        id: 'doc-new',
+        title: 'Newest document',
+        blocks: [{ id: 'heading-new', type: 'heading', headingLevel: 1, content: 'Newest document' }],
+        metadata: {},
+        createdAt: '2026-05-13T00:00:00.000Z',
+        updatedAt: '2026-05-13T00:03:00.000Z',
+      },
+    ])
+    fetchDocument.mockResolvedValue({
+      id: 'doc-new',
+      title: 'Newest document',
+      blocks: [
+        { id: 'heading-new', type: 'heading', headingLevel: 1, content: 'Newest document' },
+        { id: 'para-new', type: 'paragraph', content: 'Loaded recent draft.' },
+      ],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:03:00.000Z',
+    })
+    fetchDocumentVersions.mockResolvedValue([])
+
+    await useWorkspaceStore.getState().bootstrapWorkspaceDocument()
+
+    expect(listDocuments).toHaveBeenCalledTimes(1)
+    expect(fetchDocument).toHaveBeenCalledWith('doc-new')
+    expect(useWorkspaceStore.getState().activeDocumentId).toBe('doc-new')
+    expect(useWorkspaceStore.getState().documentBlocks[1].content).toBe('Loaded recent draft.')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('creates a blank backend document when bootstrap finds no documents', async () => {
+    listDocuments.mockResolvedValue([])
+    createDocument.mockResolvedValue({
+      id: 'doc-blank',
+      title: '未命名研究草稿',
+      blocks: [
+        { id: 'blank-title', type: 'heading', headingLevel: 1, content: '未命名研究草稿' },
+        { id: 'blank-body', type: 'paragraph', content: '' },
+      ],
+      metadata: {},
+      createdAt: '2026-05-13T00:00:00.000Z',
+      updatedAt: '2026-05-13T00:00:00.000Z',
+    })
+
+    await useWorkspaceStore.getState().bootstrapWorkspaceDocument()
+
+    expect(createDocument).toHaveBeenCalledWith({
+      title: '未命名研究草稿',
+      blocks: expect.arrayContaining([
+        expect.objectContaining({ type: 'heading', content: '未命名研究草稿' }),
+        expect.objectContaining({ type: 'paragraph', content: '' }),
+      ]),
+    })
+    expect(useWorkspaceStore.getState().activeDocumentId).toBe('doc-blank')
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('未命名研究草稿')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved')
+  })
+
+  it('updates inserts deletes and toggles editable document blocks', () => {
+    useWorkspaceStore.setState({
+      selectedBlockId: 'para-1',
+      documentBlocks: [
+        { id: 'heading-1', type: 'heading', headingLevel: 1, content: 'Title' },
+        { id: 'para-1', type: 'paragraph', content: 'Body', citations: [{ id: 'c1', label: '[1]', referenceId: 'r1' }] },
+      ],
+      saveStatus: 'saved',
+    })
+
+    useWorkspaceStore.getState().updateDocumentBlock('para-1', { content: 'Edited body' })
+    useWorkspaceStore.getState().insertDocumentBlock('para-1', { id: 'para-2', type: 'paragraph', content: 'Second' })
+    useWorkspaceStore.getState().toggleBlockType('para-2')
+    useWorkspaceStore.getState().deleteDocumentBlock('para-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks).toEqual([
+      expect.objectContaining({ id: 'heading-1', type: 'heading', content: 'Title' }),
+      expect.objectContaining({ id: 'para-2', type: 'heading', headingLevel: 2, content: 'Second' }),
+    ])
+    expect(state.documentBlocks.some(block => block.id === 'para-1')).toBe(false)
+    expect(state.saveStatus).toBe('modified')
+  })
+
+  it('applies inline markdown to the selected editable block', () => {
+    useWorkspaceStore.setState({
+      selectedBlockId: 'para-1',
+      documentBlocks: [{ id: 'para-1', type: 'paragraph', content: 'Alpha\nBeta' }],
+      saveStatus: 'saved',
+    })
+
+    useWorkspaceStore.getState().applyInlineMarkdown('bold', { start: 0, end: 5 })
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('**Alpha**\nBeta')
+
+    useWorkspaceStore.getState().applyInlineMarkdown('list')
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toBe('- **Alpha**\n- Beta')
+
+    useWorkspaceStore.getState().applyInlineMarkdown('link', { start: 2, end: 11 })
+    expect(useWorkspaceStore.getState().documentBlocks[0].content).toContain('[**Alpha**](https://)')
+    expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
   })
 
   it('saves edited blocks to the active backend document', async () => {

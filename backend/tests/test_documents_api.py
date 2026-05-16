@@ -17,6 +17,7 @@ from api.documents import (
     create_document,
     create_version,
     get_document,
+    list_documents,
     list_versions,
     restore_version,
     update_document,
@@ -57,6 +58,13 @@ class FakeRedis:
         if stop == -1:
             return items[start:]
         return items[start:stop + 1]
+
+    async def scan_iter(self, match=None):
+        import fnmatch
+
+        for key in list(self.values.keys()):
+            if match is None or fnmatch.fnmatch(key, match):
+                yield key
 
 
 def make_request():
@@ -219,6 +227,44 @@ class DocumentsApiTest(unittest.TestCase):
                 )
             )
         self.assertEqual(forbidden_version.exception.status_code, 404)
+
+    def test_list_documents_returns_current_user_documents_sorted_by_updated_at(self):
+        store = self.request.app.state.document_store
+        self.run_async(store.save_document("alice@hust.edu.cn", {
+            "id": "older-doc",
+            "title": "Older",
+            "blocks": [],
+            "metadata": {},
+            "createdAt": "2026-05-12T00:00:00+00:00",
+            "updatedAt": "2026-05-12T00:00:00+00:00",
+        }))
+        self.run_async(store.save_document("alice@hust.edu.cn", {
+            "id": "newer-doc",
+            "title": "Newer",
+            "blocks": [],
+            "metadata": {},
+            "createdAt": "2026-05-13T00:00:00+00:00",
+            "updatedAt": "2026-05-13T00:00:00+00:00",
+        }))
+        self.run_async(store.save_document("bob@hust.edu.cn", {
+            "id": "other-user-doc",
+            "title": "Should not leak",
+            "blocks": [],
+            "metadata": {},
+            "createdAt": "2026-05-14T00:00:00+00:00",
+            "updatedAt": "2026-05-14T00:00:00+00:00",
+        }))
+
+        listed = self.run_async(list_documents(self.request, user_id="alice@hust.edu.cn"))
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual([document["id"] for document in response_data(listed)], ["newer-doc", "older-doc"])
+
+    def test_list_documents_returns_empty_array_for_new_user(self):
+        listed = self.run_async(list_documents(self.request, user_id="new@hust.edu.cn"))
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(response_data(listed), [])
 
 
 if __name__ == "__main__":

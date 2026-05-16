@@ -16,12 +16,20 @@ The dev server runs on `http://localhost:5173` and proxies:
 
 ## Verify
 
+From the repository root:
+
 ```bash
-npm run test -- --run
-npm run build
+make test-frontend
+
+# Full local frontend build still requires a compatible host Node/npm:
+cd frontend && npm run lint && npm run build
 ```
 
-`npm run build` runs `tsc -b` before Vite build. Type-only imports must use `import type` because `verbatimModuleSyntax` is enabled.
+`make test-frontend` runs the editing workflow Vitest coverage in the Node 20
+Docker image `inference-engine-frontend-build:verify` and does not use host
+`frontend/node_modules`. `npm run build` runs `tsc -b` before Vite build, and
+local `npm` commands require Node 20 or newer. Type-only imports must use
+`import type` because `verbatimModuleSyntax` is enabled.
 
 ## Architecture
 

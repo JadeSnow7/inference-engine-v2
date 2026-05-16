@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,6 +62,45 @@ describe('Discovery graph API data', () => {
     expect(screen.getByText('正在加载知识图谱...')).toBeInTheDocument()
     expect(await screen.findAllByText('API Topic')).toHaveLength(2)
     expect(screen.queryByText('Generative AI')).not.toBeInTheDocument()
+  })
+
+  it('filters graph nodes by search text against label description and references', async () => {
+    fetchGraph.mockResolvedValue({
+      nodes: [
+        {
+          id: 'cnn',
+          label: 'CNN',
+          type: 'concept',
+          description: '卷积神经网络',
+          referenceIds: ['ref-alexnet'],
+          position: { x: 100, y: 120 },
+        },
+        {
+          id: 'transformer',
+          label: 'Transformer',
+          type: 'method',
+          description: '自注意力方法',
+          referenceIds: ['ref-vit'],
+          position: { x: 240, y: 120 },
+        },
+      ],
+      edges: [{ id: 'edge-1', source: 'cnn', target: 'transformer', label: 'related' }],
+    })
+
+    renderDiscovery()
+
+    expect(await screen.findAllByText('CNN')).toHaveLength(2)
+    fireEvent.change(screen.getByPlaceholderText('搜索概念、学者或文献节点...'), {
+      target: { value: 'vit' },
+    })
+
+    expect(screen.queryByText('CNN')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Transformer')).toHaveLength(2)
+
+    fireEvent.change(screen.getByPlaceholderText('搜索概念、学者或文献节点...'), {
+      target: { value: '不存在词' },
+    })
+    expect(screen.getByText('未找到匹配节点')).toBeInTheDocument()
   })
 
   it('shows an empty state when the graph API returns no nodes', async () => {

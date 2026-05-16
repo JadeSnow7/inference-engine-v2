@@ -9,6 +9,7 @@ from api.chat import router as chat_router
 from api.courses import router as courses_router
 from api.dashboard import router as dashboard_router
 from api.documents import router as documents_router
+from api.editing import router as editing_router
 from api.graph import router as graph_router
 from api.health import router as health_router
 from api.library import router as library_router
@@ -21,6 +22,7 @@ from api.users import router as users_router
 from api.writing import router as writing_router
 from config import settings
 from conversation.manager import ConversationManager
+from editing.deepseek import DeepSeekProvider
 from rag.dashscope_provider import DashScopeKnowledgeRAGRetriever
 from rag.embed_adapter import DashScopeEmbedder
 from rag.graph import KnowledgeGraph, build_demo_graph
@@ -94,6 +96,8 @@ async def lifespan(app: FastAPI):
     app.state.kg = kg
     app.state.rag = rag
     app.state.norm_retriever = build_norm_retriever()
+    app.state.editing_jobs = {}
+    app.state.editing_provider = DeepSeekProvider() if settings.editing_model_configured else None
     app.state.conv_manager = ConversationManager(RedisConversationStore(redis_client))
     app.state.course_store = RedisCourseStore(redis_client)
     app.state.document_store = RedisDocumentStore(redis_client)
@@ -122,6 +126,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(courses_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
+app.include_router(editing_router, prefix="/v1")
 app.include_router(graph_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")

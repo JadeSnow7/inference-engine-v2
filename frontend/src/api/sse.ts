@@ -60,6 +60,20 @@ export function connectSSE(
       // stream: true 防止多字节中文被截断
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
+      let sawTerminalEvent = false
+
+      const dispatchRawEvent = (raw: string) => {
+        if (!raw.startsWith('data: ')) return
+        try {
+          const event = JSON.parse(raw.slice(6)) as SSEEvent
+          if (event.type === 'done' || event.type === 'error') {
+            sawTerminalEvent = true
+          }
+          handleEvent(event, handlers)
+        } catch {
+          // 忽略格式错误的帧
+        }
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -72,17 +86,18 @@ export function connectSSE(
           const raw = buffer.slice(0, boundary)
           buffer = buffer.slice(boundary + 2)
 
-          if (raw.startsWith('data: ')) {
-            try {
-              const event = JSON.parse(raw.slice(6)) as SSEEvent
-              handleEvent(event, handlers)
-            } catch {
-              // 忽略格式错误的帧
-            }
-          }
+          dispatchRawEvent(raw)
 
           boundary = buffer.indexOf('\n\n')
         }
+      }
+
+      buffer += decoder.decode()
+      if (buffer.trim()) {
+        dispatchRawEvent(buffer.trim())
+      }
+      if (!sawTerminalEvent) {
+        handlers.onError('生成连接已提前结束，请重试')
       }
     })
     .catch((err: Error) => {

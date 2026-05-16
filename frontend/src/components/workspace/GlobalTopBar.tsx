@@ -2,15 +2,38 @@ import { Bell, Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserStore } from '../../store/user'
+import { useWorkspaceStore } from '../../store/workspace'
 import { NotificationsPopover } from './NotificationsPopover'
+import { ProviderStatusIndicator } from './ProviderStatusIndicator'
 import { SearchBox } from './SearchBox'
 import { SettingsDialog } from './SettingsDialog'
 
 export function GlobalTopBar() {
   const navigate = useNavigate()
   const userId = useUserStore(state => state.userId)
+  const createBlankDocument = useWorkspaceStore(state => state.createBlankDocument)
+  const saveStatus = useWorkspaceStore(state => state.saveStatus)
+  const currentSuggestion = useWorkspaceStore(state => state.currentSuggestion)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isCreatingDocument, setIsCreatingDocument] = useState(false)
+
+  const handleCreateDocument = async () => {
+    if (
+      (saveStatus === 'modified' || currentSuggestion)
+      && !window.confirm('当前存在未保存修改或待处理 AI 建议，新建文档会切换到空白草稿。是否继续？')
+    ) {
+      return
+    }
+
+    setIsCreatingDocument(true)
+    try {
+      await createBlankDocument()
+      navigate('/workbench')
+    } finally {
+      setIsCreatingDocument(false)
+    }
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 border-b border-scholar-border bg-white/90 px-5 shadow-sm backdrop-blur">
@@ -24,12 +47,14 @@ export function GlobalTopBar() {
         />
       </div>
 
+      <ProviderStatusIndicator />
       <button
-        className="hidden items-center gap-2 rounded-xl bg-scholar-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-scholar-primary-hover md:flex"
-        onClick={() => navigate('/workbench')}
+        className="hidden items-center gap-2 rounded-xl bg-scholar-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-scholar-primary-hover disabled:cursor-not-allowed disabled:opacity-60 md:flex"
+        onClick={handleCreateDocument}
+        disabled={isCreatingDocument}
       >
         <Plus size={16} />
-        新建
+        {isCreatingDocument ? '新建中' : '新建'}
       </button>
       <div className="relative">
         <button

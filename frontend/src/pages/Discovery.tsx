@@ -67,6 +67,7 @@ export default function Discovery() {
   const [edges, setEdges] = useState<Edge[]>([])
   const [activeTab, setActiveTab] = useState('topic')
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -112,7 +113,7 @@ export default function Discovery() {
 
   const handleTakeToWorkbench = () => {
     setWorkbenchContext({
-      sourceTitle: selectedNode ? String(selectedNode.data.label) : '知识图谱节点',
+      sourceTitle: selectedVisibleNode ? String(selectedVisibleNode.data.label) : '知识图谱节点',
       actionType: 'review',
       courseTitle: 'Knowledge Graph',
       sourceType: 'manual',
@@ -120,6 +121,21 @@ export default function Discovery() {
     })
     navigate('/workbench')
   }
+
+  const normalizedSearch = searchQuery.trim().toLowerCase()
+  const filteredNodes = normalizedSearch.length > 0
+    ? nodes.filter(node => {
+      const referenceIds = node.data.referenceIds.join(' ')
+      return [
+        node.data.label,
+        node.data.description,
+        referenceIds,
+      ].join(' ').toLowerCase().includes(normalizedSearch)
+    })
+    : nodes
+  const visibleNodeIds = new Set(filteredNodes.map(node => node.id))
+  const filteredEdges = edges.filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+  const selectedVisibleNode = filteredNodes.find(node => node.id === selectedNode?.id) ?? filteredNodes[0] ?? null
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -144,6 +160,8 @@ export default function Discovery() {
                 <input
                   type="text"
                   placeholder="搜索概念、学者或文献节点..."
+                  value={searchQuery}
+                  onChange={event => setSearchQuery(event.target.value)}
                   className="w-full rounded-xl border border-scholar-border bg-scholar-bg-canvas py-2.5 pl-11 pr-4 text-sm font-medium text-scholar-text-primary outline-none transition focus:border-scholar-primary focus:bg-white focus:ring-4 focus:ring-blue-100"
                 />
               </div>
@@ -164,10 +182,15 @@ export default function Discovery() {
                   <StateBlock title="暂无图谱数据" description="启用本地 RAG 图谱或打开研究空间后，这里会展示概念、文献和研究空白关系。" icon={<Network size={22} />} />
                 </div>
               )}
-              {!isLoading && !errorMessage && nodes.length > 0 && (
+              {!isLoading && !errorMessage && nodes.length > 0 && filteredNodes.length === 0 && (
+                <div className="flex h-full items-center justify-center p-6">
+                  <StateBlock title="未找到匹配节点" description="换一个概念、说明词或引用编号继续搜索。" icon={<Search size={22} />} />
+                </div>
+              )}
+              {!isLoading && !errorMessage && filteredNodes.length > 0 && (
                 <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onNodeClick={(_, node) => setSelectedNode(node)}
@@ -183,12 +206,12 @@ export default function Discovery() {
         </Card>
 
         <Card title="节点详情" className="min-h-0 overflow-y-auto">
-          {selectedNode ? (
+          {selectedVisibleNode ? (
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-scholar-discovery">{selectedNode.data.nodeType} Node</span>
-                  <h2 className="mt-1 text-lg font-bold leading-tight text-scholar-text-primary">{selectedNode.data.label as string}</h2>
+                  <span className="text-xs font-bold uppercase tracking-wider text-scholar-discovery">{selectedVisibleNode.data.nodeType} Node</span>
+                  <h2 className="mt-1 text-lg font-bold leading-tight text-scholar-text-primary">{selectedVisibleNode.data.label as string}</h2>
                 </div>
                 <button type="button" onClick={() => setSelectedNode(null)} className="rounded-lg p-1 text-scholar-text-weak hover:bg-gray-100" aria-label="关闭节点详情">
                   <X size={18} />
@@ -198,15 +221,15 @@ export default function Discovery() {
               <section>
                 <h3 className="text-sm font-semibold text-scholar-text-primary">节点说明</h3>
                 <p className="mt-2 text-sm leading-6 text-scholar-text-secondary">
-                  {selectedNode.data.description || '该节点暂无说明，后续会随 RAG 图谱或研究空间材料补齐。'}
+                  {selectedVisibleNode.data.description || '该节点暂无说明，后续会随 RAG 图谱或研究空间材料补齐。'}
                 </p>
               </section>
 
               <section>
                 <h3 className="text-sm font-semibold text-scholar-text-primary">关联证据</h3>
                 <div className="mt-3 space-y-2">
-                  {selectedNode.data.referenceIds.length > 0 ? (
-                    selectedNode.data.referenceIds.map(referenceId => (
+                  {selectedVisibleNode.data.referenceIds.length > 0 ? (
+                    selectedVisibleNode.data.referenceIds.map(referenceId => (
                       <div key={referenceId} className="rounded-xl border border-scholar-border bg-scholar-bg-canvas p-3">
                         <h4 className="text-sm font-semibold leading-tight text-scholar-text-primary">{referenceId}</h4>
                         <p className="mt-1 text-xs font-medium text-scholar-text-weak">来自图谱节点引用</p>

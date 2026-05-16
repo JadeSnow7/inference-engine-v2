@@ -22,6 +22,8 @@ from core.desensitize import desensitize
 from core.events import EventType, SSEEvent, extract_token, fmt
 from core.router import route_scene
 
+ROUTE_SCENE_TIMEOUT_SECONDS = 12
+
 
 def _safe_error(e: Exception) -> str:
     if isinstance(e, json.JSONDecodeError):
@@ -72,7 +74,11 @@ async def main_loop(
         profile_dict = profile if isinstance(profile, dict) else vars(profile) if hasattr(profile, '__dict__') else {}
         safe_message = desensitize(user_message, profile_dict)
 
-        scene = await route_scene(safe_message)
+        try:
+            scene = await asyncio.wait_for(route_scene(safe_message), timeout=ROUTE_SCENE_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            scene = "paragraph"
+            yield fmt(SSEEvent(type=EventType.STAGE, stage="路由超时，使用段落生成"))
 
         # --- Teaching-style override: step_by_step → guided pipeline ---
         teaching_style = (
@@ -173,4 +179,3 @@ async def _bump_session_stats(user_id: str, profile_store) -> None:
         await profile_store.set(user_id, profile)
     except Exception:
         pass
-
