@@ -67,6 +67,21 @@ class SettingsCompatibilityTest(unittest.TestCase):
 
         self.assertEqual(settings.AI_PROVIDER_PREFERENCE, "bailian_first")
 
+    def test_dashscope_app_defaults_enable_bailian_sdk_path(self) -> None:
+        from config import Settings
+
+        env = {
+            "DASHSCOPE_API_KEY": "test-key",
+            "JWT_SECRET": "jwt-secret",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = Settings()
+
+        self.assertEqual(settings.DASHSCOPE_APP_ID, "b3102617f35a4ffbab5befabebdcacc4")
+        self.assertTrue(settings.ENABLE_BAILIAN_APP)
+        self.assertTrue(settings.bailian_app_configured)
+
     def test_editing_model_is_configured_by_dashscope_key(self) -> None:
         from config import Settings
 

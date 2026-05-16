@@ -14,8 +14,8 @@ except ImportError:  # pragma: no cover - local fallback for environments withou
 class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    DASHSCOPE_APP_ID: str = ""
-    ENABLE_BAILIAN_APP: bool = False
+    DASHSCOPE_APP_ID: str = "b3102617f35a4ffbab5befabebdcacc4"
+    ENABLE_BAILIAN_APP: bool = True
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_V4_PRO_MODEL: str = "deepseek-v4-pro"
