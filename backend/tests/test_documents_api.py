@@ -172,6 +172,29 @@ class DocumentsApiTest(unittest.TestCase):
         self.assertEqual(restored.status_code, 200)
         self.assertEqual(response_data(restored)["blocks"][0]["text"], "First draft.")
 
+    def test_version_creation_handles_legacy_null_document_metadata(self):
+        awaitable = self.request.app.state.document_store.save_document("alice@hust.edu.cn", {
+            "id": "legacy-null-metadata",
+            "title": "Legacy document",
+            "blocks": [{"id": "intro", "type": "paragraph", "text": "Draft."}],
+            "metadata": None,
+            "createdAt": "2026-05-13T00:00:00.000Z",
+            "updatedAt": "2026-05-13T00:00:00.000Z",
+        })
+        self.run_async(awaitable)
+
+        version = self.run_async(
+            create_version(
+                "legacy-null-metadata",
+                VersionCreateRequest(label="Safe version"),
+                self.request,
+                user_id="alice@hust.edu.cn",
+            )
+        )
+
+        self.assertEqual(version.status_code, 201)
+        self.assertEqual(response_data(version)["metadata"], {})
+
     def test_documents_are_isolated_by_user(self):
         created = response_data(self.run_async(
             create_document(

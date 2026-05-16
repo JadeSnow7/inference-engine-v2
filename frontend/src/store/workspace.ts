@@ -135,6 +135,7 @@ interface WorkspaceState {
   setReviewItems: (items: ReviewItem[]) => void
   upsertReviewItem: (item: ReviewItem, options?: { persist?: boolean }) => void
   setReviewItemStatus: (id: string, status: ReviewItem['status'], versionAfterId?: string | null) => void
+  acceptReviewItem: (id: string) => void
   enqueueCurrentSuggestionAsReviewItem: (documentId: string) => void
   clearRagArtifacts: () => void
   nextChange: () => void
@@ -583,6 +584,24 @@ function createReviewItemFromSuggestion(
   }
 }
 
+function suggestionFromReviewItem(item: ReviewItem): DocumentSuggestion {
+  return {
+    id: item.id,
+    title: '审阅项',
+    summary: item.reason || '接受审阅项生成的版本',
+    targetBlockIds: [...item.targetBlockIds],
+    operation: 'replace_blocks',
+    beforeBlocks: item.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: item.afterBlocks.map(cloneDocumentBlock),
+    reason: item.reason,
+    confidence: 1,
+    changes: item.changes.map(change => ({ ...change })),
+    reasons: item.reason ? [item.reason] : [],
+    reasoningSteps: [],
+    createdAt: item.createdAt,
+  }
+}
+
 function upsertReviewItemInList(items: ReviewItem[], item: ReviewItem): ReviewItem[] {
   const reviewItem = cloneReviewItem(item)
   const existingIndex = items.findIndex(entry => entry.id === reviewItem.id)
@@ -597,6 +616,16 @@ function upsertReviewItemInList(items: ReviewItem[], item: ReviewItem): ReviewIt
 
 function shouldPersistReviewItem(item: ReviewItem): boolean {
   return item.documentId !== 'local-draft'
+}
+
+function hasApplicableDocumentPatch(item: ReviewItem, blocks: DocumentBlock[]): boolean {
+  if (item.source === 'writing_analysis') return false
+
+  const blockIds = new Set(blocks.map(block => block.id))
+  return (
+    item.afterBlocks.some(block => blockIds.has(block.id))
+    || item.changes.some(change => blockIds.has(change.blockId))
+  )
 }
 
 function buildUpdatedBlocksFromSuggestion(blocks: DocumentBlock[], suggestion: DocumentSuggestion): DocumentBlock[] {
@@ -1362,6 +1391,61 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
     }
   },
+  acceptReviewItem: (id) => {
+    let shouldSaveBackend = false
+    let itemToPersist: ReviewItem | null = null
+    set((state) => {
+      const item = state.reviewItems.find(entry => entry.id === id)
+      if (!item) return state
+
+      const canApplyBlocks = hasApplicableDocumentPatch(item, state.documentBlocks)
+      if (!canApplyBlocks) {
+        const updated = { ...item, status: 'accepted' as const, updatedAt: new Date().toISOString() }
+        itemToPersist = updated
+        return { reviewItems: upsertReviewItemInList(state.reviewItems, updated) }
+      }
+
+      const suggestion = suggestionFromReviewItem(item)
+      const documentBlocks = buildUpdatedBlocksFromSuggestion(state.documentBlocks, suggestion)
+      const newVersion = createAcceptedVersionSnapshot(
+        suggestion,
+        documentBlocks,
+        state.documentVersions.length,
+      )
+      const documentVersions = [
+        newVersion,
+        ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
+      ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
+      shouldSaveBackend = Boolean(state.activeDocumentId)
+      const persisted = shouldSaveBackend
+        ? false
+        : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const updated = {
+        ...item,
+        status: 'accepted' as const,
+        versionAfterId: newVersion.id,
+        updatedAt: new Date().toISOString(),
+      }
+      itemToPersist = updated
+
+      return {
+        documentBlocks,
+        documentVersions,
+        activeVersionId: newVersion.id,
+        reviewItems: upsertReviewItemInList(state.reviewItems, updated),
+        saveStatus: shouldSaveBackend ? 'saving' : persisted ? 'local-saved' : 'modified',
+      }
+    })
+    const persistedReviewItem = itemToPersist as ReviewItem | null
+    if (persistedReviewItem && shouldPersistReviewItem(persistedReviewItem)) {
+      void updateBackendReviewItem(persistedReviewItem.id, {
+        documentId: persistedReviewItem.documentId,
+        status: persistedReviewItem.status,
+        versionAfterId: persistedReviewItem.versionAfterId,
+      }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
+    if (shouldSaveBackend) void get().saveCurrentDocument()
+  },
   enqueueCurrentSuggestionAsReviewItem: (documentId) => {
     let reviewItemToPersist: ReviewItem | null = null
     set(state => {
@@ -1431,6 +1515,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   acceptSuggestion: () => {
     let shouldSaveBackend = false
+    let itemToPersist: ReviewItem | null = null
     set((state) => {
       if (!state.currentSuggestion) return state
 
@@ -1448,10 +1533,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const persisted = shouldSaveBackend
         ? false
         : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const reviewItemId = `review-${state.currentSuggestion.id}`
+      const reviewItems = state.reviewItems.map(item => {
+        if (item.id !== reviewItemId) return item
+        const updated = {
+          ...item,
+          status: 'accepted' as const,
+          versionAfterId: newVersion.id,
+          updatedAt: new Date().toISOString(),
+        }
+        itemToPersist = updated
+        return updated
+      })
 
       return {
         documentBlocks,
         documentVersions,
+        reviewItems,
         currentSuggestion: null,
         currentChangeIndex: 0,
         aiRunStatus: 'done',
@@ -1460,6 +1558,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         activeVersionId: newVersion.id,
       }
     })
+    const persistedReviewItem = itemToPersist as ReviewItem | null
+    if (persistedReviewItem && shouldPersistReviewItem(persistedReviewItem)) {
+      void updateBackendReviewItem(persistedReviewItem.id, {
+        documentId: persistedReviewItem.documentId,
+        status: persistedReviewItem.status,
+        versionAfterId: persistedReviewItem.versionAfterId,
+      }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
     if (shouldSaveBackend) void get().saveCurrentDocument()
   },
   rejectSuggestion: () => set({

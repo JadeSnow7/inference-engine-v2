@@ -873,6 +873,88 @@ describe('useWorkspaceStore', () => {
     expect(useWorkspaceStore.getState().reviewItems[0].versionAfterId).toBeNull()
   })
 
+  it('accepts persisted document tool review items into the document', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+    })
+    store.setReviewItems([makeReviewItem({
+      id: 'review-apply-1',
+      documentId: 'doc-1',
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+      afterBlocks: [{ id: 'b1', type: 'paragraph', content: 'After content' }],
+      changes: [{
+        id: 'change-apply-1',
+        blockId: 'b1',
+        type: 'modify',
+        originalText: 'Before content',
+        revisedText: 'After content',
+        reason: 'Apply persisted review item',
+      }],
+    })])
+
+    store.acceptReviewItem('review-apply-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks[0].content).toBe('After content')
+    expect(state.reviewItems[0].status).toBe('accepted')
+    expect(state.reviewItems[0].versionAfterId).toBe(state.activeVersionId)
+    expect(updateReviewItem).toHaveBeenCalledWith('review-apply-1', expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: state.activeVersionId,
+    }))
+  })
+
+  it('accepts writing analysis review items without applying them as document patches', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      activeVersionId: 'version-before',
+      documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Original paragraph' }],
+      documentVersions: [{
+        id: 'version-before',
+        label: 'Current',
+        summary: 'Current version',
+        updatedAt: '2026-05-15T00:00:00Z',
+        isCurrent: true,
+        createdAt: '2026-05-15T00:00:00Z',
+        documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Original paragraph' }],
+      }],
+    })
+    store.setReviewItems([makeReviewItem({
+      id: 'writing-review-1',
+      documentId: 'doc-1',
+      source: 'writing_analysis',
+      kind: 'norm',
+      targetBlockIds: [],
+      changes: [{
+        id: 'writing-issue-1',
+        blockId: 'validation-issue-1',
+        type: 'modify',
+        originalText: '',
+        revisedText: '引用格式需要核验',
+        reason: 'warning',
+      }],
+    })])
+
+    store.acceptReviewItem('writing-review-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks[0].content).toBe('Original paragraph')
+    expect(state.activeVersionId).toBe('version-before')
+    expect(state.documentVersions).toHaveLength(1)
+    expect(state.reviewItems[0].status).toBe('accepted')
+    expect(state.reviewItems[0].versionAfterId).toBeNull()
+    expect(updateDocument).not.toHaveBeenCalled()
+    expect(updateReviewItem).toHaveBeenCalledWith('writing-review-1', expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: null,
+    }))
+  })
+
   it('clears review items when resetting the workspace', () => {
     const store = useWorkspaceStore.getState()
     store.setReviewItems([makeReviewItem()])
@@ -1017,5 +1099,26 @@ describe('useWorkspaceStore', () => {
     expect(reviewItem.beforeBlocks[0].id).toBe('block-intro-1')
     expect(reviewItem.afterBlocks[0].content).toBe('Expanded paragraph for review.')
     expect(reviewItem.changes[0].revisedText).toBe('Expanded paragraph for review.')
+  })
+
+  it('marks the matching generated review item accepted when accepting the live suggestion', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({ activeDocumentId: 'doc-1' })
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+    store.appendGeneratedToken('Accepted generated paragraph.')
+    store.finishAIRunAsSuggestion()
+
+    const reviewItemId = useWorkspaceStore.getState().reviewItems[0].id
+    store.acceptSuggestion()
+
+    const acceptedReviewItem = useWorkspaceStore.getState().reviewItems.find(item => item.id === reviewItemId)
+    expect(acceptedReviewItem?.status).toBe('accepted')
+    expect(acceptedReviewItem?.versionAfterId).toBe(useWorkspaceStore.getState().activeVersionId)
+    expect(updateReviewItem).toHaveBeenCalledWith(reviewItemId, expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: useWorkspaceStore.getState().activeVersionId,
+    }))
   })
 })

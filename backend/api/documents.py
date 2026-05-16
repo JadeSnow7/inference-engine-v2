@@ -116,7 +116,7 @@ async def create_version(
         "label": body.label,
         "title": document["title"],
         "blocks": document.get("blocks", []),
-        "metadata": {**document.get("metadata", {}), **body.metadata},
+        "metadata": {**(document.get("metadata") or {}), **body.metadata},
         "createdAt": now,
     }
     await store.add_version(user_id, document_id, version)

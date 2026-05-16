@@ -63,6 +63,38 @@ class ReviewItemsStoreTest(unittest.TestCase):
         self.assertEqual(alice_other_doc_items, [])
         self.assertEqual(bob_items, [])
 
+    def test_create_review_item_replaces_existing_client_id(self):
+        store = RedisReviewStore(FakeRedis())
+        self.run_async(store.create_review_item("alice@hust.edu.cn", {
+            "id": "review-client-1",
+            "documentId": "doc-1",
+            "source": "document_tool",
+            "kind": "rewrite",
+            "targetBlockIds": ["b1"],
+            "beforeBlocks": [],
+            "afterBlocks": [],
+            "changes": [],
+            "reason": "First",
+            "evidenceIds": [],
+        }))
+
+        self.run_async(store.create_review_item("alice@hust.edu.cn", {
+            "id": "review-client-1",
+            "documentId": "doc-1",
+            "source": "document_tool",
+            "kind": "rewrite",
+            "targetBlockIds": ["b2"],
+            "beforeBlocks": [],
+            "afterBlocks": [],
+            "changes": [],
+            "reason": "Updated",
+            "evidenceIds": [],
+        }))
+
+        items = self.run_async(store.list_review_items("alice@hust.edu.cn", "doc-1"))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["reason"], "Updated")
+
 
 def response_data(response):
     return json.loads(response.body)["data"]

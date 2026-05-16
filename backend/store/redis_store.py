@@ -278,7 +278,11 @@ class RedisReviewStore:
             "updatedAt": now,
         }
         items = await self.list_review_items(user_id, document_id)
-        items.insert(0, created)
+        existing_index = next((index for index, existing in enumerate(items) if existing.get("id") == created["id"]), None)
+        if existing_index is None:
+            items.insert(0, created)
+        else:
+            items[existing_index] = created
         await self.save_review_items(user_id, document_id, items)
         return created
 
