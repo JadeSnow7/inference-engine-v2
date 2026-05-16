@@ -47,9 +47,9 @@ export default function Dashboard() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-scholar-primary">
               <Sparkles size={18} />
-              ScholarScript 工作区
+              学术写作助手
             </div>
-            <h1 className="text-2xl font-bold text-scholar-text-primary">研究工作台总览</h1>
+            <h1 className="text-2xl font-bold text-scholar-text-primary">写作工作台总览</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-scholar-text-secondary">
               聚合课程、文献、知识图谱和 AI 写作反馈，继续推进当前毕业论文研究。
             </p>

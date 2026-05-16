@@ -14,14 +14,56 @@ const modeItems = [
 export default function Writing() {
   const [text, setText] = useState('')
   const [mode, setMode] = useState<WritingMode>('norms')
+  const [analyzedMode, setAnalyzedMode] = useState<WritingMode | null>(null)
+  const [reviewNotice, setReviewNotice] = useState('')
   const activeSessionId = useWorkspaceStore(state => state.activeSessionId)
+  const activeDocumentId = useWorkspaceStore(state => state.activeDocumentId)
+  const activeVersionId = useWorkspaceStore(state => state.activeVersionId)
+  const upsertReviewItem = useWorkspaceStore(state => state.upsertReviewItem)
   const { result, loading, error, runAnalysis } = useWritingAnalysis()
 
   const canAnalyze = text.trim().length > 0
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!canAnalyze) return
-    void runAnalysis(text.trim(), mode, activeSessionId ?? undefined)
+    const currentMode = mode
+    setReviewNotice('')
+    const response = await runAnalysis(text.trim(), currentMode, activeSessionId ?? undefined)
+    if (response) {
+      setAnalyzedMode(currentMode)
+    }
+  }
+
+  const handlePushToReview = () => {
+    if (!result) return
+    const now = new Date().toISOString()
+    const reviewMode = analyzedMode ?? mode
+    const reason = result.validation.map(item => item.message).filter(Boolean).join('；') || '写作分析结果'
+    upsertReviewItem({
+      id: createWritingReviewId(now),
+      documentId: activeDocumentId ?? 'local-draft',
+      source: 'writing_analysis',
+      kind: reviewKindFromWritingMode(reviewMode),
+      status: 'pending',
+      targetBlockIds: [],
+      beforeBlocks: [],
+      afterBlocks: [],
+      changes: result.validation.map(item => ({
+        id: `writing-${item.id}`,
+        blockId: item.id,
+        type: 'modify',
+        originalText: '',
+        revisedText: item.message,
+        reason: item.status,
+      })),
+      reason,
+      evidenceIds: result.references.map(reference => reference.id),
+      versionBeforeId: activeVersionId,
+      versionAfterId: null,
+      createdAt: now,
+      updatedAt: now,
+    }, { persist: true })
+    setReviewNotice('已推入工作台审阅队列')
   }
 
   return (
@@ -61,8 +103,32 @@ export default function Writing() {
           </div>
         </Card>
 
-        <WritingAnalysisPanel result={result} loading={loading} error={error} onRetry={handleAnalyze} />
+        <div className="flex min-w-0 flex-col gap-4">
+          {reviewNotice && (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+              {reviewNotice}
+            </div>
+          )}
+          <WritingAnalysisPanel
+            result={result}
+            loading={loading}
+            error={error}
+            onRetry={handleAnalyze}
+            onPushToReview={handlePushToReview}
+          />
+        </div>
       </div>
     </div>
   )
+}
+
+function reviewKindFromWritingMode(mode: WritingMode) {
+  if (mode === 'citation') return 'citation'
+  if (mode === 'structure') return 'structure'
+  return 'norm'
+}
+
+function createWritingReviewId(timestamp: string): string {
+  const suffix = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 10)
+  return `writing-${timestamp}-${suffix}`
 }

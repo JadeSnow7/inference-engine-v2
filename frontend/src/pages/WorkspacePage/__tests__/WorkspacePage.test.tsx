@@ -139,7 +139,7 @@ describe('WorkspacePage', () => {
   it('renders the three-column academic writing workspace', () => {
     render(<WorkspacePage />)
 
-    expect(screen.getByText('AI 教学辅助平台')).toBeInTheDocument()
+    expect(screen.getByText('学术写作助手')).toBeInTheDocument()
     expect(screen.getByText('对话历史')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '基于深度学习的图像分类方法综述' })).toBeInTheDocument()
     expect(screen.getAllByText('知识图谱').length).toBeGreaterThan(0)

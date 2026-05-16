@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceStore } from '../workspace'
 import { aiSuggestion } from '../../mocks/workspaceMock'
-import type { DocumentSuggestion } from '../../types/workspace'
+import type { DocumentSuggestion, ReviewItem } from '../../types/workspace'
 
 const fetchSessionMessages = vi.hoisted(() => vi.fn())
 const fetchSessionArtifact = vi.hoisted(() => vi.fn())
@@ -12,6 +12,9 @@ const updateDocument = vi.hoisted(() => vi.fn())
 const fetchDocumentVersions = vi.hoisted(() => vi.fn())
 const createDocumentVersion = vi.hoisted(() => vi.fn())
 const restoreDocumentVersion = vi.hoisted(() => vi.fn())
+const fetchReviewItems = vi.hoisted(() => vi.fn())
+const createReviewItem = vi.hoisted(() => vi.fn())
+const updateReviewItem = vi.hoisted(() => vi.fn())
 
 vi.mock('../../api/sessions', () => ({
   fetchSessionMessages: (...args: unknown[]) => fetchSessionMessages(...args),
@@ -28,8 +31,35 @@ vi.mock('../../api/documents', () => ({
   restoreDocumentVersion: (...args: unknown[]) => restoreDocumentVersion(...args),
 }))
 
+vi.mock('../../api/reviewItems', () => ({
+  fetchReviewItems: (...args: unknown[]) => fetchReviewItems(...args),
+  createReviewItem: (...args: unknown[]) => createReviewItem(...args),
+  updateReviewItem: (...args: unknown[]) => updateReviewItem(...args),
+}))
+
 const WORKBENCH_DRAFT_KEY = 'workbench:documentBlocks:v1'
 const WORKBENCH_SNAPSHOT_KEY = 'workbench:workspaceSnapshot:v1'
+
+function makeReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
+  return {
+    id: 'review-1',
+    documentId: 'doc-1',
+    source: 'document_tool',
+    kind: 'rewrite',
+    status: 'pending',
+    targetBlockIds: ['b1'],
+    beforeBlocks: [],
+    afterBlocks: [],
+    changes: [],
+    reason: 'Improve clarity',
+    evidenceIds: [],
+    versionBeforeId: null,
+    versionAfterId: null,
+    createdAt: '2026-05-15T00:00:00Z',
+    updatedAt: '2026-05-15T00:00:00Z',
+    ...overrides,
+  }
+}
 
 function installMemoryStorage(options: { throwOnSet?: boolean } = {}) {
   const values = new Map<string, string>()
@@ -55,7 +85,25 @@ describe('useWorkspaceStore', () => {
     fetchDocumentVersions.mockReset()
     createDocumentVersion.mockReset()
     restoreDocumentVersion.mockReset()
+    fetchReviewItems.mockReset()
+    createReviewItem.mockReset()
+    updateReviewItem.mockReset()
+    fetchReviewItems.mockResolvedValue({ items: [] })
+    createReviewItem.mockImplementation(async (item: ReviewItem) => item)
+    updateReviewItem.mockImplementation(async (_id: string, input: Partial<ReviewItem> & { documentId: string }) => makeReviewItem({ id: _id, ...input }))
+    vi.useRealTimers()
     useWorkspaceStore.getState().resetWorkspace()
+  })
+
+  it('defaults and resets the right panel to review mode', () => {
+    const store = useWorkspaceStore.getState()
+
+    expect(store.rightPanelMode).toBe('review')
+
+    store.setRightPanelMode('evidence')
+    store.resetWorkspace()
+
+    expect(useWorkspaceStore.getState().rightPanelMode).toBe('review')
   })
 
   it('tracks active workspace selections', () => {
@@ -65,14 +113,14 @@ describe('useWorkspaceStore', () => {
     store.setActiveVersion('v3-1')
     store.setSelectedGraphNode('cnn')
     store.setSelectedBlock('block-related-work')
-    store.setRightPanelMode('list')
+    store.setRightPanelMode('evidence')
     store.setAIRunStatus('reasoning')
 
     expect(useWorkspaceStore.getState().activeConversationId).toBe('conv-review')
     expect(useWorkspaceStore.getState().activeVersionId).toBe('v3-1')
     expect(useWorkspaceStore.getState().selectedGraphNodeId).toBe('cnn')
     expect(useWorkspaceStore.getState().selectedBlockId).toBe('block-related-work')
-    expect(useWorkspaceStore.getState().rightPanelMode).toBe('list')
+    expect(useWorkspaceStore.getState().rightPanelMode).toBe('evidence')
     expect(useWorkspaceStore.getState().aiRunStatus).toBe('reasoning')
   })
 
@@ -637,13 +685,16 @@ describe('useWorkspaceStore', () => {
       metadata: {},
       createdAt: '2026-05-13T00:02:00.000Z',
     }])
+    fetchReviewItems.mockResolvedValue({ items: [makeReviewItem({ id: 'review-from-api', documentId: 'doc-1' })] })
 
     await useWorkspaceStore.getState().loadDocument('doc-1')
 
     const state = useWorkspaceStore.getState()
     expect(fetchDocument).toHaveBeenCalledWith('doc-1')
     expect(fetchDocumentVersions).toHaveBeenCalledWith('doc-1')
+    expect(fetchReviewItems).toHaveBeenCalledWith('doc-1')
     expect(state.activeDocumentId).toBe('doc-1')
+    expect(state.reviewItems[0].id).toBe('review-from-api')
     expect(state.documentBlocks[1].content).toBe('Loaded from API.')
     expect(state.documentVersions[0]).toEqual(expect.objectContaining({
       id: 'version-1',
@@ -865,5 +916,382 @@ describe('useWorkspaceStore', () => {
 
     expect(useWorkspaceStore.getState().documentErrorMessage).toBe('backend unavailable')
     expect(useWorkspaceStore.getState().saveStatus).toBe('modified')
+  })
+
+  it('defensively clones review items when setting them', () => {
+    const store = useWorkspaceStore.getState()
+    const item = makeReviewItem({
+      targetBlockIds: ['b1'],
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+      afterBlocks: [{ id: 'b1', type: 'paragraph', content: 'After content' }],
+      changes: [{
+        id: 'change-1',
+        blockId: 'b1',
+        type: 'modify',
+        originalText: 'Before content',
+        revisedText: 'After content',
+        reason: 'Improve clarity',
+      }],
+      evidenceIds: ['evidence-1'],
+    })
+    const items = [item]
+
+    store.setReviewItems(items)
+    item.targetBlockIds.push('b2')
+    item.beforeBlocks[0].content = 'Mutated before content'
+    item.changes[0].reason = 'Mutated reason'
+    item.evidenceIds.push('evidence-2')
+
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+    expect(useWorkspaceStore.getState().reviewItems).not.toBe(items)
+    expect(useWorkspaceStore.getState().reviewItems[0].targetBlockIds).toEqual(['b1'])
+    expect(useWorkspaceStore.getState().reviewItems[0].beforeBlocks[0].content).toBe('Before content')
+    expect(useWorkspaceStore.getState().reviewItems[0].changes[0].reason).toBe('Improve clarity')
+    expect(useWorkspaceStore.getState().reviewItems[0].evidenceIds).toEqual(['evidence-1'])
+  })
+
+  it('prepends a new review item when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem({ id: 'review-existing' })])
+    store.upsertReviewItem(makeReviewItem({ id: 'review-new' }))
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => item.id)).toEqual([
+      'review-new',
+      'review-existing',
+    ])
+  })
+
+  it('defensively clones new review items when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    const item = makeReviewItem({
+      id: 'review-new',
+      targetBlockIds: ['b1'],
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+    })
+
+    store.upsertReviewItem(item)
+    item.targetBlockIds.push('b2')
+    item.beforeBlocks[0].content = 'Mutated before content'
+
+    expect(useWorkspaceStore.getState().reviewItems[0].targetBlockIds).toEqual(['b1'])
+    expect(useWorkspaceStore.getState().reviewItems[0].beforeBlocks[0].content).toBe('Before content')
+  })
+
+  it('replaces an existing review item in place when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([
+      makeReviewItem({ id: 'review-1', status: 'pending' }),
+      makeReviewItem({ id: 'review-2', status: 'pending' }),
+    ])
+
+    store.upsertReviewItem(makeReviewItem({ id: 'review-2', status: 'deferred' }))
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => [item.id, item.status])).toEqual([
+      ['review-1', 'pending'],
+      ['review-2', 'deferred'],
+    ])
+  })
+
+  it('defensively clones replacement review items when upserting', () => {
+    const store = useWorkspaceStore.getState()
+    const replacement = makeReviewItem({
+      id: 'review-2',
+      targetBlockIds: ['b2'],
+      beforeBlocks: [{ id: 'b2', type: 'paragraph', content: 'Replacement content' }],
+    })
+    store.setReviewItems([
+      makeReviewItem({ id: 'review-1' }),
+      makeReviewItem({ id: 'review-2' }),
+    ])
+
+    store.upsertReviewItem(replacement)
+    replacement.targetBlockIds.push('b3')
+    replacement.beforeBlocks[0].content = 'Mutated replacement content'
+
+    expect(useWorkspaceStore.getState().reviewItems.map(item => item.id)).toEqual(['review-1', 'review-2'])
+    expect(useWorkspaceStore.getState().reviewItems[1].targetBlockIds).toEqual(['b2'])
+    expect(useWorkspaceStore.getState().reviewItems[1].beforeBlocks[0].content).toBe('Replacement content')
+  })
+
+  it('updates review item status timestamp and accepted version', () => {
+    const now = new Date('2026-05-15T12:34:56.000Z')
+    const store = useWorkspaceStore.getState()
+    vi.useFakeTimers()
+
+    try {
+      vi.setSystemTime(now)
+      store.setReviewItems([makeReviewItem()])
+      store.setReviewItemStatus('review-1', 'accepted', 'version-after-1')
+
+      const updatedItem = useWorkspaceStore.getState().reviewItems[0]
+      expect(updatedItem.status).toBe('accepted')
+      expect(updatedItem.versionAfterId).toBe('version-after-1')
+      expect(updatedItem.updatedAt).toBe(now.toISOString())
+      expect(updateReviewItem).toHaveBeenCalledWith('review-1', {
+        documentId: 'doc-1',
+        status: 'accepted',
+        versionAfterId: 'version-after-1',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears review item accepted version when status update receives null', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem({ versionAfterId: 'version-after-1' })])
+
+    store.setReviewItemStatus('review-1', 'deferred', null)
+
+    expect(useWorkspaceStore.getState().reviewItems[0].versionAfterId).toBeNull()
+  })
+
+  it('accepts persisted document tool review items into the document', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+    })
+    store.setReviewItems([makeReviewItem({
+      id: 'review-apply-1',
+      documentId: 'doc-1',
+      beforeBlocks: [{ id: 'b1', type: 'paragraph', content: 'Before content' }],
+      afterBlocks: [{ id: 'b1', type: 'paragraph', content: 'After content' }],
+      changes: [{
+        id: 'change-apply-1',
+        blockId: 'b1',
+        type: 'modify',
+        originalText: 'Before content',
+        revisedText: 'After content',
+        reason: 'Apply persisted review item',
+      }],
+    })])
+
+    store.acceptReviewItem('review-apply-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks[0].content).toBe('After content')
+    expect(state.reviewItems[0].status).toBe('accepted')
+    expect(state.reviewItems[0].versionAfterId).toBe(state.activeVersionId)
+    expect(updateReviewItem).toHaveBeenCalledWith('review-apply-1', expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: state.activeVersionId,
+    }))
+  })
+
+  it('accepts writing analysis review items without applying them as document patches', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({
+      activeDocumentId: 'doc-1',
+      activeVersionId: 'version-before',
+      documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Original paragraph' }],
+      documentVersions: [{
+        id: 'version-before',
+        label: 'Current',
+        summary: 'Current version',
+        updatedAt: '2026-05-15T00:00:00Z',
+        isCurrent: true,
+        createdAt: '2026-05-15T00:00:00Z',
+        documentBlocks: [{ id: 'b1', type: 'paragraph', content: 'Original paragraph' }],
+      }],
+    })
+    store.setReviewItems([makeReviewItem({
+      id: 'writing-review-1',
+      documentId: 'doc-1',
+      source: 'writing_analysis',
+      kind: 'norm',
+      targetBlockIds: [],
+      changes: [{
+        id: 'writing-issue-1',
+        blockId: 'validation-issue-1',
+        type: 'modify',
+        originalText: '',
+        revisedText: '引用格式需要核验',
+        reason: 'warning',
+      }],
+    })])
+
+    store.acceptReviewItem('writing-review-1')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.documentBlocks[0].content).toBe('Original paragraph')
+    expect(state.activeVersionId).toBe('version-before')
+    expect(state.documentVersions).toHaveLength(1)
+    expect(state.reviewItems[0].status).toBe('accepted')
+    expect(state.reviewItems[0].versionAfterId).toBeNull()
+    expect(updateDocument).not.toHaveBeenCalled()
+    expect(updateReviewItem).toHaveBeenCalledWith('writing-review-1', expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: null,
+    }))
+  })
+
+  it('clears review items when resetting the workspace', () => {
+    const store = useWorkspaceStore.getState()
+    store.setReviewItems([makeReviewItem()])
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+
+    store.resetWorkspace()
+
+    expect(useWorkspaceStore.getState().reviewItems).toEqual([])
+  })
+
+  it('converts current suggestion into a pending review item', () => {
+    const store = useWorkspaceStore.getState()
+    store.startDocumentToolRun('expand', 'block-intro-1')
+    store.setCurrentSuggestion({
+      id: 'suggestion-1',
+      title: 'AI 生成的修改建议',
+      summary: 'Improve clarity',
+      targetBlockIds: ['b1'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'Improve clarity',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['Improve clarity'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+
+    expect(useWorkspaceStore.getState().reviewItems[0]).toMatchObject({
+      documentId: 'doc-1',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      reason: 'Improve clarity',
+    })
+  })
+
+  it('routes finished AI generation into the review queue', () => {
+    const store = useWorkspaceStore.getState()
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Generated paragraph for review.')
+    store.finishAIRunAsSuggestion()
+
+    const state = useWorkspaceStore.getState()
+    expect(state.currentSuggestion?.changes[0].revisedText).toBe('Generated paragraph for review.')
+    expect(state.reviewItems[0]).toMatchObject({
+      documentId: 'local-draft',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      reason: state.currentSuggestion?.reason,
+    })
+    expect(state.rightPanelMode).toBe('review')
+  })
+
+  it('persists finished AI generation review items for backend documents', () => {
+    useWorkspaceStore.setState({ activeDocumentId: 'doc-1' })
+    const store = useWorkspaceStore.getState()
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Generated paragraph for backend review.')
+    store.finishAIRunAsSuggestion()
+
+    expect(createReviewItem).toHaveBeenCalledWith(expect.objectContaining({
+      documentId: 'doc-1',
+      source: 'document_tool',
+      kind: 'rewrite',
+      status: 'pending',
+      versionAfterId: null,
+    }))
+  })
+
+  it('replaces an existing suggestion review item with the same id', () => {
+    const store = useWorkspaceStore.getState()
+    store.setCurrentSuggestion({
+      id: 'suggestion-duplicate',
+      title: 'AI 生成的修改建议',
+      summary: 'First summary',
+      targetBlockIds: ['b1'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'First reason',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['First reason'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+    store.setCurrentSuggestion({
+      id: 'suggestion-duplicate',
+      title: 'AI 生成的修改建议',
+      summary: 'Updated summary',
+      targetBlockIds: ['b2'],
+      operation: 'replace_blocks',
+      beforeBlocks: [],
+      afterBlocks: [],
+      reason: 'Updated reason',
+      confidence: 0.8,
+      changes: [],
+      reasons: ['Updated reason'],
+      reasoningSteps: ['Generated from selected paragraph'],
+      createdAt: '2026-05-15T00:00:00Z',
+    })
+    store.enqueueCurrentSuggestionAsReviewItem('doc-1')
+
+    expect(useWorkspaceStore.getState().reviewItems).toHaveLength(1)
+    expect(useWorkspaceStore.getState().reviewItems[0]).toMatchObject({
+      id: 'review-suggestion-duplicate',
+      reason: 'Updated reason',
+      targetBlockIds: ['b2'],
+    })
+  })
+
+  it('preserves AI run mode kind and metadata when generation finishes', () => {
+    const store = useWorkspaceStore.getState()
+    const activeVersionId = useWorkspaceStore.getState().activeVersionId
+    const targetBlock = store.startDocumentToolRun('expand', 'block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+
+    store.appendGeneratedToken('Expanded paragraph for review.')
+    store.finishAIRunAsSuggestion()
+
+    const state = useWorkspaceStore.getState()
+    const reviewItem = state.reviewItems[0]
+    expect(reviewItem).toMatchObject({
+      documentId: 'local-draft',
+      kind: 'expand',
+      versionBeforeId: activeVersionId,
+      versionAfterId: null,
+      createdAt: state.currentSuggestion?.createdAt,
+      updatedAt: state.currentSuggestion?.createdAt,
+    })
+    expect(reviewItem.beforeBlocks[0].id).toBe('block-intro-1')
+    expect(reviewItem.afterBlocks[0].content).toBe('Expanded paragraph for review.')
+    expect(reviewItem.changes[0].revisedText).toBe('Expanded paragraph for review.')
+  })
+
+  it('marks the matching generated review item accepted when accepting the live suggestion', () => {
+    const store = useWorkspaceStore.getState()
+    useWorkspaceStore.setState({ activeDocumentId: 'doc-1' })
+    const targetBlock = store.startAIRun('block-intro-1')
+    expect(targetBlock?.id).toBe('block-intro-1')
+    store.appendGeneratedToken('Accepted generated paragraph.')
+    store.finishAIRunAsSuggestion()
+
+    const reviewItemId = useWorkspaceStore.getState().reviewItems[0].id
+    store.acceptSuggestion()
+
+    const acceptedReviewItem = useWorkspaceStore.getState().reviewItems.find(item => item.id === reviewItemId)
+    expect(acceptedReviewItem?.status).toBe('accepted')
+    expect(acceptedReviewItem?.versionAfterId).toBe(useWorkspaceStore.getState().activeVersionId)
+    expect(updateReviewItem).toHaveBeenCalledWith(reviewItemId, expect.objectContaining({
+      documentId: 'doc-1',
+      status: 'accepted',
+      versionAfterId: useWorkspaceStore.getState().activeVersionId,
+    }))
   })
 })

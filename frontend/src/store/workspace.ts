@@ -10,6 +10,11 @@ import {
   type PersistedDocument,
   type PersistedDocumentVersion,
 } from '../api/documents'
+import {
+  createReviewItem as createBackendReviewItem,
+  fetchReviewItems,
+  updateReviewItem as updateBackendReviewItem,
+} from '../api/reviewItems'
 import type {
   EditingGateReport,
   EditingPatchItem,
@@ -26,6 +31,7 @@ import type {
   DocumentSuggestion,
   DocumentVersionSnapshot,
   ReferenceItem,
+  ReviewItem,
   RightPanelMode,
   SuggestionChange,
   WorkspaceGraphEdge,
@@ -103,6 +109,7 @@ interface WorkspaceState {
   graphNodes: WorkspaceGraphNode[]
   graphEdges: WorkspaceGraphEdge[]
   references: ReferenceItem[]
+  reviewItems: ReviewItem[]
   currentEditingJobId: string | null
   editingStages: EditingStageItem[]
   editingPatches: EditingPatchItem[]
@@ -149,6 +156,11 @@ interface WorkspaceState {
   upsertRagPapers: (papers: PaperItem[]) => void
   upsertRagGaps: (gaps: GapItem[]) => void
   upsertReferences: (references: ReferenceEventItem[]) => void
+  setReviewItems: (items: ReviewItem[]) => void
+  upsertReviewItem: (item: ReviewItem, options?: { persist?: boolean }) => void
+  setReviewItemStatus: (id: string, status: ReviewItem['status'], versionAfterId?: string | null) => void
+  acceptReviewItem: (id: string) => void
+  enqueueCurrentSuggestionAsReviewItem: (documentId: string) => void
   startEditingRun: (input: { jobId: string; stages: EditingStageItem[]; targetBlockId?: string | null }) => void
   applyEditingStage: (stage: EditingStageItem) => void
   applyEditingPatch: (patch: EditingPatchItem) => void
@@ -215,6 +227,17 @@ function cloneDocumentBlock(block: DocumentBlock): DocumentBlock {
   }
 }
 
+function cloneReviewItem(item: ReviewItem): ReviewItem {
+  return {
+    ...item,
+    targetBlockIds: [...item.targetBlockIds],
+    beforeBlocks: item.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: item.afterBlocks.map(cloneDocumentBlock),
+    changes: item.changes.map(change => ({ ...change })),
+    evidenceIds: [...item.evidenceIds],
+  }
+}
+
 function cloneGraphNode(node: WorkspaceGraphNode): WorkspaceGraphNode {
   return {
     ...node,
@@ -266,7 +289,7 @@ function initialWorkspaceState() {
     selectedGraphNodeId: 'cnn',
     selectedReferenceId: null,
     selectedBlockId: null,
-    rightPanelMode: 'graph' as RightPanelMode,
+    rightPanelMode: 'review' as RightPanelMode,
     aiRunStatus: 'idle' as AIRunStatus,
     aiStageLabel: '',
     aiErrorMessage: '',
@@ -289,6 +312,7 @@ function initialWorkspaceState() {
     graphNodes: cloneGraphNodes(),
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
+    reviewItems: [],
     currentEditingJobId: null,
     editingStages: [],
     editingPatches: [],
@@ -635,6 +659,87 @@ function createSuggestionFromGeneratedText(
     reasons: [...metadata.reasons],
     reasoningSteps: [...metadata.reasoningSteps],
   }
+}
+
+function reviewKindFromAIRunMode(mode: AIRunMode): ReviewItem['kind'] {
+  if (mode === 'expand') return 'expand'
+  if (mode === 'logic_check') return 'logic_check'
+  if (mode === 'citation_enhance') return 'citation'
+  return 'rewrite'
+}
+
+function createReviewItemFromSuggestion(
+  suggestion: DocumentSuggestion,
+  options: {
+    documentId: string
+    aiRunMode: AIRunMode
+    versionBeforeId: string | null
+    timestamp?: string
+  },
+): ReviewItem {
+  const timestamp = options.timestamp ?? new Date().toISOString()
+
+  return {
+    id: `review-${suggestion.id}`,
+    documentId: options.documentId,
+    source: 'document_tool',
+    kind: reviewKindFromAIRunMode(options.aiRunMode),
+    status: 'pending',
+    targetBlockIds: [...suggestion.targetBlockIds],
+    beforeBlocks: suggestion.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: suggestion.afterBlocks.map(cloneDocumentBlock),
+    changes: suggestion.changes.map(change => ({ ...change })),
+    reason: suggestion.reason || suggestion.summary,
+    evidenceIds: [],
+    versionBeforeId: options.versionBeforeId,
+    versionAfterId: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function suggestionFromReviewItem(item: ReviewItem): DocumentSuggestion {
+  return {
+    id: item.id,
+    title: '审阅项',
+    summary: item.reason || '接受审阅项生成的版本',
+    targetBlockIds: [...item.targetBlockIds],
+    operation: 'replace_blocks',
+    beforeBlocks: item.beforeBlocks.map(cloneDocumentBlock),
+    afterBlocks: item.afterBlocks.map(cloneDocumentBlock),
+    reason: item.reason,
+    confidence: 1,
+    changes: item.changes.map(change => ({ ...change })),
+    reasons: item.reason ? [item.reason] : [],
+    reasoningSteps: [],
+    createdAt: item.createdAt,
+  }
+}
+
+function upsertReviewItemInList(items: ReviewItem[], item: ReviewItem): ReviewItem[] {
+  const reviewItem = cloneReviewItem(item)
+  const existingIndex = items.findIndex(entry => entry.id === reviewItem.id)
+  if (existingIndex === -1) {
+    return [reviewItem, ...items]
+  }
+
+  const next = [...items]
+  next[existingIndex] = reviewItem
+  return next
+}
+
+function shouldPersistReviewItem(item: ReviewItem): boolean {
+  return item.documentId !== 'local-draft'
+}
+
+function hasApplicableDocumentPatch(item: ReviewItem, blocks: DocumentBlock[]): boolean {
+  if (item.source === 'writing_analysis') return false
+
+  const blockIds = new Set(blocks.map(block => block.id))
+  return (
+    item.afterBlocks.some(block => blockIds.has(block.id))
+    || item.changes.some(change => blockIds.has(change.blockId))
+  )
 }
 
 function createSuggestionFromEditingPatches(
@@ -1211,9 +1316,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   loadDocument: async (documentId) => {
     set({ saveStatus: 'saving', documentErrorMessage: '' })
     try {
-      const [document, versions] = await Promise.all([
+      const [document, versions, reviewResponse] = await Promise.all([
         fetchDocument(documentId),
         fetchDocumentVersions(documentId),
+        fetchReviewItems(documentId).catch(() => ({ items: [] })),
       ])
       const documentBlocks = documentBlocksFromApi(document)
       const documentVersions = versions.length > 0
@@ -1223,6 +1329,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({
         activeDocumentId: document.id,
         activeVersionId,
+        reviewItems: reviewResponse.items.map(cloneReviewItem),
         documentBlocks,
         documentVersions,
         currentSuggestion: null,
@@ -1460,35 +1567,51 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     aiRunStatus: 'generating',
     aiStageLabel: '正在生成',
   })),
-  finishAIRunAsSuggestion: () => set((state) => {
-    const suggestion = createSuggestionFromGeneratedText(
-      state.pendingBeforeBlocks,
-      state.generatedText,
-      state.aiRunMode,
-    )
+  finishAIRunAsSuggestion: () => {
+    let reviewItemToPersist: ReviewItem | null = null
+    set((state) => {
+      const suggestion = createSuggestionFromGeneratedText(
+        state.pendingBeforeBlocks,
+        state.generatedText,
+        state.aiRunMode,
+      )
 
-    if (!suggestion) {
+      if (!suggestion) {
+        return {
+          aiRunStatus: 'error',
+          aiStageLabel: 'AI 生成失败',
+          aiErrorMessage: 'AI 未返回可用于改写的文本',
+          currentSuggestion: null,
+          currentChangeIndex: 0,
+          aiRunMode: 'rewrite' as AIRunMode,
+          pendingBeforeBlocks: [],
+        }
+      }
+
+      const reviewItem = createReviewItemFromSuggestion(suggestion, {
+        documentId: state.activeDocumentId ?? 'local-draft',
+        aiRunMode: state.aiRunMode,
+        versionBeforeId: state.activeVersionId,
+        timestamp: suggestion.createdAt,
+      })
+      reviewItemToPersist = reviewItem
+
       return {
-        aiRunStatus: 'error',
-        aiStageLabel: 'AI 生成失败',
-        aiErrorMessage: 'AI 未返回可用于改写的文本',
-        currentSuggestion: null,
+        aiRunStatus: 'done',
+        aiStageLabel: state.aiRunMode === 'citation_enhance' ? '引用增强完成' : '生成完成',
+        aiErrorMessage: '',
+        currentSuggestion: suggestion,
         currentChangeIndex: 0,
         aiRunMode: 'rewrite' as AIRunMode,
         pendingBeforeBlocks: [],
+        reviewItems: upsertReviewItemInList(state.reviewItems, reviewItem),
+        rightPanelMode: 'review',
       }
+    })
+    if (reviewItemToPersist && shouldPersistReviewItem(reviewItemToPersist)) {
+      void createBackendReviewItem(reviewItemToPersist).then(item => get().upsertReviewItem(item)).catch(() => undefined)
     }
-
-    return {
-      aiRunStatus: 'done',
-      aiStageLabel: state.aiRunMode === 'citation_enhance' ? '引用增强完成' : '生成完成',
-      aiErrorMessage: '',
-      currentSuggestion: suggestion,
-      currentChangeIndex: 0,
-      aiRunMode: 'rewrite' as AIRunMode,
-      pendingBeforeBlocks: [],
-    }
-  }),
+  },
   failAIRunWithFallback: (message) => set({
     aiRunStatus: 'error',
     aiStageLabel: 'AI 生成失败',
@@ -1539,6 +1662,108 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       url: reference.url,
     }))),
   })),
+  setReviewItems: (items) => set({ reviewItems: items.map(cloneReviewItem) }),
+  upsertReviewItem: (item, options) => {
+    set(state => ({ reviewItems: upsertReviewItemInList(state.reviewItems, item) }))
+    if (options?.persist && shouldPersistReviewItem(item)) {
+      void createBackendReviewItem(item).then(saved => get().upsertReviewItem(saved)).catch(() => undefined)
+    }
+  },
+  setReviewItemStatus: (id, status, versionAfterId) => {
+    let itemToPersist: ReviewItem | null = null
+    set(state => ({
+      reviewItems: state.reviewItems.map(item => {
+        if (item.id !== id) return item
+        const updated = {
+          ...item,
+          status,
+          versionAfterId: versionAfterId !== undefined ? versionAfterId : item.versionAfterId,
+          updatedAt: new Date().toISOString(),
+        }
+        itemToPersist = updated
+        return updated
+      }),
+    }))
+    const persistedReviewItem = itemToPersist as ReviewItem | null
+    if (persistedReviewItem && shouldPersistReviewItem(persistedReviewItem)) {
+      void updateBackendReviewItem(persistedReviewItem.id, {
+        documentId: persistedReviewItem.documentId,
+        status: persistedReviewItem.status,
+        versionAfterId: persistedReviewItem.versionAfterId,
+      }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
+  },
+  acceptReviewItem: (id) => {
+    let shouldSaveBackend = false
+    let itemToPersist: ReviewItem | null = null
+    set((state) => {
+      const item = state.reviewItems.find(entry => entry.id === id)
+      if (!item) return state
+
+      const canApplyBlocks = hasApplicableDocumentPatch(item, state.documentBlocks)
+      if (!canApplyBlocks) {
+        const updated = { ...item, status: 'accepted' as const, updatedAt: new Date().toISOString() }
+        itemToPersist = updated
+        return { reviewItems: upsertReviewItemInList(state.reviewItems, updated) }
+      }
+
+      const suggestion = suggestionFromReviewItem(item)
+      const documentBlocks = buildUpdatedBlocksFromSuggestion(state.documentBlocks, suggestion)
+      const newVersion = createAcceptedVersionSnapshot(
+        suggestion,
+        documentBlocks,
+        state.documentVersions.length,
+      )
+      const documentVersions = [
+        newVersion,
+        ...state.documentVersions.map(version => ({ ...cloneVersionSnapshot(version), isCurrent: false })),
+      ].slice(0, MAX_LOCAL_VERSION_SNAPSHOTS)
+      shouldSaveBackend = Boolean(state.activeDocumentId)
+      const persisted = shouldSaveBackend
+        ? false
+        : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const updated = {
+        ...item,
+        status: 'accepted' as const,
+        versionAfterId: newVersion.id,
+        updatedAt: new Date().toISOString(),
+      }
+      itemToPersist = updated
+
+      return {
+        documentBlocks,
+        documentVersions,
+        activeVersionId: newVersion.id,
+        reviewItems: upsertReviewItemInList(state.reviewItems, updated),
+        saveStatus: shouldSaveBackend ? 'saving' : persisted ? 'local-saved' : 'modified',
+      }
+    })
+    const persistedReviewItem = itemToPersist as ReviewItem | null
+    if (persistedReviewItem && shouldPersistReviewItem(persistedReviewItem)) {
+      void updateBackendReviewItem(persistedReviewItem.id, {
+        documentId: persistedReviewItem.documentId,
+        status: persistedReviewItem.status,
+        versionAfterId: persistedReviewItem.versionAfterId,
+      }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
+    if (shouldSaveBackend) void get().saveCurrentDocument()
+  },
+  enqueueCurrentSuggestionAsReviewItem: (documentId) => {
+    let reviewItemToPersist: ReviewItem | null = null
+    set(state => {
+      if (!state.currentSuggestion) return {}
+      const reviewItem = createReviewItemFromSuggestion(state.currentSuggestion, {
+        documentId,
+        aiRunMode: 'rewrite',
+        versionBeforeId: state.activeVersionId,
+      })
+      reviewItemToPersist = reviewItem
+      return { reviewItems: upsertReviewItemInList(state.reviewItems, reviewItem) }
+    })
+    if (reviewItemToPersist && shouldPersistReviewItem(reviewItemToPersist)) {
+      void createBackendReviewItem(reviewItemToPersist).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
+  },
   startEditingRun: ({ jobId, stages, targetBlockId }) => set((state) => {
     const targetBlock = (targetBlockId
       ? state.documentBlocks.find(block => block.id === targetBlockId && block.type === 'paragraph')
@@ -1683,6 +1908,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   acceptSuggestion: () => {
     let shouldSaveBackend = false
+    let itemToPersist: ReviewItem | null = null
     set((state) => {
       if (!state.currentSuggestion) return state
 
@@ -1700,10 +1926,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const persisted = shouldSaveBackend
         ? false
         : persistWorkspaceSnapshot(createWorkspaceSnapshot(documentBlocks, documentVersions, newVersion.id))
+      const reviewItemId = `review-${state.currentSuggestion.id}`
+      const reviewItems = state.reviewItems.map(item => {
+        if (item.id !== reviewItemId) return item
+        const updated = {
+          ...item,
+          status: 'accepted' as const,
+          versionAfterId: newVersion.id,
+          updatedAt: new Date().toISOString(),
+        }
+        itemToPersist = updated
+        return updated
+      })
 
       return {
         documentBlocks,
         documentVersions,
+        reviewItems,
         currentSuggestion: null,
         currentChangeIndex: 0,
         aiRunStatus: 'done',
@@ -1712,6 +1951,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         activeVersionId: newVersion.id,
       }
     })
+    const persistedReviewItem = itemToPersist as ReviewItem | null
+    if (persistedReviewItem && shouldPersistReviewItem(persistedReviewItem)) {
+      void updateBackendReviewItem(persistedReviewItem.id, {
+        documentId: persistedReviewItem.documentId,
+        status: persistedReviewItem.status,
+        versionAfterId: persistedReviewItem.versionAfterId,
+      }).then(item => get().upsertReviewItem(item)).catch(() => undefined)
+    }
     if (shouldSaveBackend) void get().saveCurrentDocument()
   },
   rejectSuggestion: () => set({

@@ -73,4 +73,3 @@ async def run_editing_job(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},
     )
-

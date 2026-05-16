@@ -33,7 +33,11 @@ export function LeftSidebar() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const handleResourceClick = (label: string) => {
-    setRightPanelMode(label === '知识图谱' ? 'graph' : 'list')
+    if (label === '知识图谱') {
+      setRightPanelMode('graph')
+    } else {
+      setRightPanelMode('evidence')
+    }
     setRestoreSessionNotice(`已切换到${label}`)
   }
 

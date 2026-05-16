@@ -15,6 +15,7 @@ from api.health import router as health_router
 from api.library import router as library_router
 from api.notifications import router as notifications_router
 from api.responses import register_error_handlers
+from api.review_items import router as review_items_router
 from api.search import router as search_router
 from api.settings import router as settings_router
 from api.users import router as users_router
@@ -34,6 +35,7 @@ from store.redis_store import (
     RedisEvidenceStore,
     RedisNotificationStore,
     RedisProfileStore,
+    RedisReviewStore,
     RedisSettingsStore,
     UserStore,
 )
@@ -101,6 +103,7 @@ async def lifespan(app: FastAPI):
     app.state.document_store = RedisDocumentStore(redis_client)
     app.state.evidence_store = RedisEvidenceStore(redis_client)
     app.state.notification_store = RedisNotificationStore(redis_client)
+    app.state.review_store = RedisReviewStore(redis_client)
     app.state.profile_store = RedisProfileStore(redis_client)
     app.state.settings_store = RedisSettingsStore(redis_client)
     app.state.user_store = UserStore(redis_client)
@@ -127,6 +130,7 @@ app.include_router(editing_router, prefix="/v1")
 app.include_router(graph_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(review_items_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(writing_router, prefix="/v1")

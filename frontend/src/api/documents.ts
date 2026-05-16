@@ -11,13 +11,20 @@ export interface PersistedDocument {
   updatedAt: string
 }
 
+export interface DocumentVersionMetadata {
+  reviewItemIds?: string[]
+  acceptedChangeCount?: number
+  source?: 'manual' | 'review_accept' | 'restore'
+  [key: string]: unknown
+}
+
 export interface PersistedDocumentVersion {
   id: string
   documentId: string
   label?: string | null
   title: string
   blocks: DocumentBlock[]
-  metadata?: Record<string, unknown>
+  metadata?: DocumentVersionMetadata
   createdAt: string
 }
 
@@ -63,10 +70,11 @@ export function fetchDocumentVersions(documentId: string): Promise<PersistedDocu
 export function createDocumentVersion(
   documentId: string,
   label?: string,
+  metadata: DocumentVersionMetadata = {},
 ): Promise<PersistedDocumentVersion> {
   return apiFetch<PersistedDocumentVersion>(`/api/documents/${documentId}/versions`, {
     method: 'POST',
-    body: JSON.stringify({ label }),
+    body: JSON.stringify({ label, metadata }),
   })
 }
 

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MouseEvent, ReactNode } from 'react'
 import { createJSONStorage } from 'zustand/middleware'
 import App from '../../App'
+import { aiSuggestion } from '../../mocks/workspaceMock'
 import { useUserStore } from '../../store/user'
 import { useWorkspaceStore } from '../../store/workspace'
 
@@ -129,7 +130,7 @@ describe('workspace views', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: '研究工作台总览' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '写作工作台总览' })).toBeInTheDocument()
     expect(await screen.findByText('当前研究焦点')).toBeInTheDocument()
     expect(screen.getByText('AI 建议')).toBeInTheDocument()
     expect(screen.queryByText(/Welcome Back/i)).not.toBeInTheDocument()
@@ -154,7 +155,8 @@ describe('workspace views', () => {
 
     expect(screen.getByRole('heading', { name: '研究空间' })).toBeInTheDocument()
     expect(await screen.findByText('大语言模型在教育领域的应用综述')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /进入研究工作台/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /打开空白工作台/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /进入研究工作台/ })).not.toBeInTheDocument()
   })
 
   it('keeps discovery inside the workspace page model', async () => {
@@ -166,5 +168,41 @@ describe('workspace views', () => {
     expect(screen.getByPlaceholderText('搜索概念、学者或文献节点...')).toBeInTheDocument()
     expect(await screen.findByTestId('knowledge-flow')).toBeInTheDocument()
     expect(screen.getAllByText('API Graph Topic').length).toBeGreaterThan(0)
+  })
+
+  it('renders the workspace context drawer tabs', async () => {
+    window.history.pushState({}, '', '/workbench')
+
+    render(<App />)
+
+    expect(screen.getByRole('tab', { name: '审阅' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '证据' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '图谱' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '版本' })).toBeInTheDocument()
+    expect(screen.getByText('暂无待处理审阅项')).toBeInTheDocument()
+  })
+
+  it('keeps generated AI suggestions reviewable and applicable in the drawer', () => {
+    window.history.pushState({}, '', '/workbench')
+    useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
+
+    render(<App />)
+
+    const drawer = screen.getByRole('complementary', { name: '工作台上下文' })
+    expect(within(drawer).getByRole('button', { name: '接受全部' })).toBeInTheDocument()
+    expect(within(drawer).getByRole('button', { name: '接受当前' })).toBeInTheDocument()
+    expect(within(drawer).getByText('对比视图')).toBeInTheDocument()
+  })
+
+  it('limits evidence drawer results to the selected block citations', () => {
+    window.history.pushState({}, '', '/workbench')
+    useWorkspaceStore.getState().setSelectedBlock('block-intro-1')
+    useWorkspaceStore.getState().setRightPanelMode('evidence')
+
+    render(<App />)
+
+    const drawer = screen.getByRole('complementary', { name: '工作台上下文' })
+    expect(within(drawer).getByText('AlexNet: Image Classification with Deep Convolutional Neural Networks')).toBeInTheDocument()
+    expect(within(drawer).queryByText('Deep Residual Learning for Image Recognition')).not.toBeInTheDocument()
   })
 })

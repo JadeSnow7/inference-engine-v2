@@ -87,4 +87,3 @@ class EditingJobStatus(BaseModel):
     gate_report: EditingGateReport = Field(default_factory=EditingGateReport)
     checkpoint_block_ids: list[str] = Field(default_factory=list)
     error: str = ""
-

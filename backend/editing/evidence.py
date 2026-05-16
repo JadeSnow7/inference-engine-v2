@@ -101,4 +101,3 @@ def _unresolved_reference(reference_id: str, title: str) -> EvidenceReference:
         excerpt="证据接口已预留；查不到证据时必须标记 unresolved，不得伪造引用。",
         status="unresolved",
     )
-

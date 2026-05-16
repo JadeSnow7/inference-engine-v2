@@ -4,11 +4,10 @@ Date: 2026-05-13
 
 ## Deployment Boundary
 
-Production consists of `backend/` and `frontend/`.
+Production consists of `backend/` and `frontend/`. The archived `academic-workbench-fe/` prototype has been removed from this repository; historical references should not be used for production development, deployment checks, or acceptance testing.
 
 - `backend/` exposes FastAPI routes, Redis-backed stores, SSE generation, writing analysis, and optional local GraphRAG.
 - `frontend/` is the only production React/Vite UI.
-- `academic-workbench-fe/` is archived prototype code and is outside the production boundary.
 
 ## Backend Runtime
 
@@ -28,6 +27,7 @@ Local GraphRAG only loads an embedding model from an existing local path. Set `M
 | `/api/chat` | SSE writing/chat stream and document tool generation |
 | `/api/documents` | workspace document persistence |
 | `/api/documents/{id}/versions` | document version create/list/restore |
+| `/api/review-items` | persisted review queue for AI suggestions and writing-analysis findings |
 | `/api/courses` | research-space/course listing and workbench context |
 | `/api/dashboard` | dashboard metrics, tasks, recent courses, recent documents |
 | `/api/library` | evidence list and filters |
@@ -54,7 +54,7 @@ Product pages are API-backed:
 
 ## Persistence
 
-Redis is the backend persistence boundary for sessions, users, documents, versions, courses, evidence, notifications, and settings. The frontend still keeps an explicit local draft fallback when document saves fail.
+Redis is the backend persistence boundary for sessions, users, documents, versions, review items, courses, evidence, notifications, and settings. The frontend still keeps an explicit local draft fallback when document saves fail.
 
 `workspaceMock` remains as an initial local seed/test fixture for the default workspace state. New production features should not add more mock fallbacks.
 

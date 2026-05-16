@@ -67,7 +67,7 @@ export function DocumentEditor() {
           applyInlineMarkdown(command, selection)
         }}
         onToggleBlockType={() => activeBlock && toggleBlockType(activeBlock.id)}
-        onOpenReferences={() => setRightPanelMode('list')}
+        onOpenReferences={() => setRightPanelMode('evidence')}
       />
       <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-white to-[#fbfcff] p-6">
         <div className="mx-auto flex max-w-5xl gap-5">

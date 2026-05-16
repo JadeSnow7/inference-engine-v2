@@ -221,4 +221,3 @@ def _build_gate_report(
 
 def _editing_event(event_type: str, data) -> str:
     return fmt(SSEEvent(type=event_type, data=data))
-

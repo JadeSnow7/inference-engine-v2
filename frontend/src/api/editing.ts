@@ -187,4 +187,3 @@ function handleEditingEvent(event: { type: string; content?: string; data?: unkn
       break
   }
 }
-

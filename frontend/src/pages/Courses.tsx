@@ -51,9 +51,9 @@ export default function Courses() {
 
   const handleOpenBlank = () => {
     setWorkbenchContext({
-      sourceTitle: '大语言模型在教育领域的应用综述',
+      sourceTitle: '未命名研究文档',
       actionType: 'blank',
-      courseTitle: 'Research Workspace',
+      courseTitle: '空白工作台',
       sourceType: 'manual',
       createdAt: new Date().toISOString(),
     })
@@ -75,7 +75,7 @@ export default function Courses() {
             </p>
           </div>
           <Button onClick={handleOpenBlank}>
-            进入研究工作台
+            打开空白工作台
             <ArrowRight size={16} />
           </Button>
         </header>
@@ -129,7 +129,7 @@ export default function Courses() {
 
               <div className="mt-5 flex flex-col gap-2">
                 <Button onClick={() => handleTakeToWorkbench(space)} className="w-full">
-                  {openingSpaceId === space.id ? '正在载入' : '载入工作台剖析'}
+                  {openingSpaceId === space.id ? '正在载入' : '打开工作台'}
                   <ChevronRight size={16} />
                 </Button>
                 <Button variant="secondary" onClick={() => navigate('/library')} className="w-full">

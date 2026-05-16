@@ -3,12 +3,14 @@ import { BookMarked, ExternalLink, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchEvidence, type EvidenceItem } from '../api/library'
 import { Badge, Button, Card, StateBlock } from '../components/ui'
+import type { EvidenceStatus } from '../types/workspace'
 
 export default function Library() {
   const navigate = useNavigate()
   const [evidence, setEvidence] = useState<EvidenceItem[]>([])
   const [query, setQuery] = useState('')
   const [type, setType] = useState('')
+  const [status, setStatus] = useState<EvidenceStatus | ''>('')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -20,6 +22,7 @@ export default function Library() {
     fetchEvidence({
       q: query.trim() || undefined,
       type: type || undefined,
+      status: status || undefined,
     })
       .then(response => {
         if (!isCurrent) return
@@ -39,7 +42,7 @@ export default function Library() {
     return () => {
       isCurrent = false
     }
-  }, [query, type])
+  }, [query, type, status])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -81,6 +84,22 @@ export default function Library() {
                 <option value="other">其他</option>
               </select>
             </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-scholar-text-secondary">
+              证据状态
+              <select
+                aria-label="证据状态"
+                value={status}
+                onChange={event => setStatus(event.target.value as EvidenceStatus | '')}
+                className="h-10 rounded-xl border border-scholar-border bg-white px-3 text-sm font-normal text-scholar-text-primary outline-none transition focus:border-scholar-primary focus:ring-4 focus:ring-blue-100"
+              >
+                <option value="">全部</option>
+                <option value="candidate">候选</option>
+                <option value="inserted">已插入</option>
+                <option value="needs_review">待核验</option>
+                <option value="verified">已核验</option>
+                <option value="conflict">冲突</option>
+              </select>
+            </label>
           </div>
         </header>
 
@@ -106,9 +125,9 @@ export default function Library() {
                     {typeof reference.score === 'number' && <Badge tone="primary">相关度 {Math.round(reference.score * 100)}%</Badge>}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Badge>引用候选</Badge>
-                    <Badge tone="success">可用于综述</Badge>
-                    <Badge>待核验格式</Badge>
+                    <Badge tone={getEvidenceStatusTone(reference.status)}>{getEvidenceStatusLabel(reference.status)}</Badge>
+                    {typeof reference.confidence === 'number' && <Badge>可信度 {Math.round(reference.confidence * 100)}%</Badge>}
+                    {reference.linkedBlockIds?.length ? <Badge>关联段落 {reference.linkedBlockIds.length}</Badge> : <Badge>未关联正文</Badge>}
                   </div>
                 </article>
               ))}
@@ -132,4 +151,28 @@ export default function Library() {
       </div>
     </div>
   )
+}
+
+function getEvidenceStatusLabel(status?: string): string {
+  switch (status) {
+    case 'inserted':
+      return '已插入'
+    case 'needs_review':
+      return '待核验'
+    case 'verified':
+      return '已核验'
+    case 'conflict':
+      return '冲突'
+    case 'candidate':
+    default:
+      return '候选'
+  }
+}
+
+function getEvidenceStatusTone(status?: string): 'neutral' | 'primary' | 'success' | 'warning' | 'danger' {
+  if (status === 'verified') return 'success'
+  if (status === 'needs_review') return 'warning'
+  if (status === 'conflict') return 'danger'
+  if (status === 'inserted') return 'primary'
+  return 'neutral'
 }

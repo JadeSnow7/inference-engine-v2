@@ -1,8 +1,8 @@
 # Inference Engine V2
 
-ScholarScript production integration repo. The deployable application is a FastAPI backend plus the React/Vite frontend in `frontend/`.
+ScholarScript production integration repo.
 
-`academic-workbench-fe/` is an archived prototype. Do not use it for production development, deployment checks, or acceptance testing.
+Production consists of `backend/` and `frontend/`. The archived `academic-workbench-fe/` prototype has been removed from this repository; historical references should not be used for production development, deployment checks, or acceptance testing.
 
 ## Local Development
 
@@ -43,6 +43,7 @@ Current production frontend calls these backend surfaces:
 
 - `/api/chat`: SSE writing/chat stream.
 - `/api/documents` and `/api/documents/{id}/versions`: workspace document and version persistence.
+- `/api/review-items`: persisted AI suggestion and writing-analysis review queue.
 - `/api/courses`, `/api/dashboard`, `/api/library`, `/api/graph`: product pages and evidence/graph data.
 - `/api/search`: global, workspace, conversation, reference, and course search.
 - `/api/notifications`, `/api/settings`: shell notifications and workspace preferences.

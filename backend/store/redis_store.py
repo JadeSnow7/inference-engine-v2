@@ -14,7 +14,9 @@ Extended vs original:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Optional
+from uuid import uuid4
 
 import redis.asyncio as redis
 
@@ -230,6 +232,86 @@ class RedisDocumentStore:
 
 
 # ---------------------------------------------------------------------------
+# RedisReviewStore
+# ---------------------------------------------------------------------------
+
+class RedisReviewStore:
+    """Per-user review item persistence for AI suggestions and writing analysis findings."""
+
+    def __init__(self, client=None):
+        self.client = client or redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    @staticmethod
+    def _review_items_key(user_id: str, document_id: str) -> str:
+        return f"review_items:{user_id}:{document_id}"
+
+    @staticmethod
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    async def list_review_items(self, user_id: str, document_id: str) -> list[dict]:
+        raw = await self.client.get(self._review_items_key(user_id, document_id))
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return []
+        if not isinstance(parsed, list):
+            return []
+        return [item for item in parsed if isinstance(item, dict)]
+
+    async def save_review_items(self, user_id: str, document_id: str, items: list[dict]) -> None:
+        await self.client.set(
+            self._review_items_key(user_id, document_id),
+            json.dumps(items, ensure_ascii=False),
+        )
+
+    async def create_review_item(self, user_id: str, item: dict) -> dict:
+        document_id = item["documentId"]
+        now = self._now_iso()
+        created = {
+            **item,
+            "id": item.get("id") or uuid4().hex,
+            "status": item.get("status") or "pending",
+            "createdAt": item.get("createdAt") or now,
+            "updatedAt": now,
+        }
+        items = await self.list_review_items(user_id, document_id)
+        existing_index = next((index for index, existing in enumerate(items) if existing.get("id") == created["id"]), None)
+        if existing_index is None:
+            items.insert(0, created)
+        else:
+            items[existing_index] = created
+        await self.save_review_items(user_id, document_id, items)
+        return created
+
+    async def get_review_item(self, user_id: str, document_id: str, review_item_id: str) -> dict | None:
+        for item in await self.list_review_items(user_id, document_id):
+            if item.get("id") == review_item_id:
+                return item
+        return None
+
+    async def update_review_item(self, user_id: str, document_id: str, review_item_id: str, updates: dict) -> dict | None:
+        items = await self.list_review_items(user_id, document_id)
+        matched = None
+        for index, item in enumerate(items):
+            if item.get("id") == review_item_id:
+                next_item = {
+                    **item,
+                    **updates,
+                    "updatedAt": self._now_iso(),
+                }
+                items[index] = next_item
+                matched = next_item
+                break
+        if matched is None:
+            return None
+        await self.save_review_items(user_id, document_id, items)
+        return matched
+
+
+# ---------------------------------------------------------------------------
 # RedisCourseStore
 # ---------------------------------------------------------------------------
 
@@ -371,6 +453,23 @@ class RedisEvidenceStore:
             if isinstance(item_id, str):
                 by_id[item_id] = item
         return list(by_id.values())
+
+    async def update_evidence(self, user_id: str, evidence_id: str, updates: dict) -> dict | None:
+        items = await self.list_evidence(user_id)
+        matched = None
+        for index, item in enumerate(items):
+            if item.get("id") == evidence_id:
+                next_item = {
+                    **item,
+                    **{key: value for key, value in updates.items() if value is not None},
+                }
+                items[index] = next_item
+                matched = next_item
+                break
+        if matched is None:
+            return None
+        await self.save_evidence(user_id, items)
+        return matched
 
 
 # ---------------------------------------------------------------------------

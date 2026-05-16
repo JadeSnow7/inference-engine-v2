@@ -4,12 +4,10 @@ Guidance for Codex and other coding agents working in this repository.
 
 ## Project Boundaries
 
-ScholarScript is deployed from two components:
+Production consists of `backend/` and `frontend/`. The archived `academic-workbench-fe/` prototype has been removed from this repository; historical references should not be used for production development, deployment checks, or acceptance testing.
 
 - `backend/`: FastAPI, Redis-backed persistence, SSE chat/writing APIs, optional local GraphRAG.
 - `frontend/`: the only production React/Vite frontend.
-
-`academic-workbench-fe/` is an archived prototype. Do not implement features there unless the user explicitly asks for prototype archaeology.
 
 `CLAUDE.md` currently mirrors this file for Claude Code. Keep both in sync when you change one.
 
@@ -88,6 +86,7 @@ main.py                  FastAPI app and lifespan wiring
 api/chat.py              POST /api/chat SSE stream
 api/writing.py           /v1/writing/analyze
 api/documents.py         /api/documents and version endpoints
+api/review_items.py      /api/review-items persisted review queue
 api/courses.py           research-space/course data
 api/dashboard.py         dashboard summary
 api/library.py           evidence library
@@ -109,7 +108,7 @@ rag/retriever.py         Local GraphRAG retriever
 rag/norm_retriever.py    Writing-norm retriever
 rag/dashscope_provider.py  DashScope knowledge-base RAG retriever
 rag/embed_adapter.py     DashScope embedding adapter
-store/redis_store.py     Redis stores for users, sessions, documents, courses, evidence, notifications, settings
+store/redis_store.py     Redis stores for users, sessions, documents, review items, courses, evidence, notifications, settings
 ```
 
 ### Backend tests

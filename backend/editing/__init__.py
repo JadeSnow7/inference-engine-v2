@@ -1,2 +1,1 @@
 """Academic editing job pipeline."""
-

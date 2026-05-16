@@ -93,7 +93,7 @@ describe('course to workbench handoff', () => {
   it('opens workbench with the selected course material visible in context and AI input', async () => {
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /载入工作台剖析/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /打开工作台/i }))
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/workbench')
