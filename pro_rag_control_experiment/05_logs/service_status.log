@@ -1,0 +1,4 @@
+NAME                          IMAGE                       COMMAND                  SERVICE    CREATED          STATUS          PORTS
+inference-engine-backend-1    inference-engine-backend    "uvicorn main:app --…"   backend    45 minutes ago   Up 45 minutes   8000/tcp
+inference-engine-frontend-1   inference-engine-frontend   "/docker-entrypoint.…"   frontend   10 hours ago     Up 10 hours     127.0.0.1:8080->80/tcp
+inference-engine-redis-1      redis:alpine                "docker-entrypoint.s…"   redis      10 hours ago     Up 10 hours     6379/tcp

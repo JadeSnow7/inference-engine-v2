@@ -1,0 +1,5 @@
+组别,样本数,references 返回率,grounded P,hallucinated rate,false positive,error events,TTFE,total latency,主要观察
+G1,20,0.0,0.0,0.0,0.0,0.0,0.0,0.0,无结构化来源；用于观测无 RAG 边界。
+G2,20,1.0,0.3,0.7,0.25,0.0,0.0,0.0,本地规范节点可追踪；需看召回与幻觉率。
+G3,20,1.0,0.4333,0.5667,0.25,0.0,0.05,0.05,结构化 references 来自 citation_check。
+G4,20,0.0,0.0,0.0,0.0,0.0,0.0,0.0,离线记录不确认 jxfz 命中。

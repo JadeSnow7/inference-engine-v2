@@ -1,0 +1,11 @@
+backend-1  | INFO:     Started server process [1]
+backend-1  | INFO:     Waiting for application startup.
+backend-1  | [startup] NormNodeRetriever loaded: 24 nodes, embedder=DashScope
+backend-1  | INFO:     Application startup complete.
+backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+backend-1  | INFO:     172.20.0.4:57092 - "GET /api/healthz HTTP/1.1" 200 OK
+backend-1  | INFO:     127.0.0.1:52244 - "GET /api/healthz HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.4:60686 - "POST /api/chat HTTP/1.1" 422 Unprocessable Entity
+backend-1  | INFO:     172.20.0.4:59066 - "POST /api/chat HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.4:51988 - "POST /v1/editing/jobs HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.4:48066 - "POST /v1/editing/jobs/edit-d9fedecac799/run HTTP/1.1" 200 OK

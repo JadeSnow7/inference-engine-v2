@@ -1,0 +1,6 @@
+发现,风险,论文处理
+G4 未确认 jxfz 命中,误写外部知识库验证通过,仅写百炼应用文档来源回传或未确认。
+G3 无结构化 references 时,把文本标记误当结构化回传,只依据 citation_check 输出判断。
+Pro 与 Flash 指标不同,跨模型直接比较导致因果错误,作为补充对照，不替代主评测。
+控制样本触发反馈,过度反馈,写入 false positive 错误分析。
+默认 pipeline 可能混入 Flash,误称全程 Pro,强制记录 model_claim_level。
