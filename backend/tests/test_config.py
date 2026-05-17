@@ -81,6 +81,11 @@ class SettingsCompatibilityTest(unittest.TestCase):
         self.assertEqual(settings.DASHSCOPE_APP_ID, "b3102617f35a4ffbab5befabebdcacc4")
         self.assertTrue(settings.ENABLE_BAILIAN_APP)
         self.assertTrue(settings.bailian_app_configured)
+        self.assertEqual(
+            settings.dashscope_app_base_url,
+            "https://dashscope.aliyuncs.com/api/v2/apps/agent/"
+            "b3102617f35a4ffbab5befabebdcacc4/compatible-mode/v1",
+        )
 
     def test_editing_model_is_configured_by_dashscope_key(self) -> None:
         from config import Settings

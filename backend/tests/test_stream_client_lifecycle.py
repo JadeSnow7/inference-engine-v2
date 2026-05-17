@@ -1,6 +1,5 @@
 import os
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("DASHSCOPE_API_KEY", "test-key")
@@ -9,41 +8,96 @@ os.environ.setdefault("SECRET_KEY", "test-secret")
 from core import stream
 
 
-class FakeCompletions:
-    async def create(self, **kwargs):
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(content="visible feedback"),
-                )
-            ]
-        )
-
-
-class FakeAsyncOpenAI:
-    def __init__(self):
-        self.chat = SimpleNamespace(completions=FakeCompletions())
-        self.entered = False
-        self.exited = False
-
-    async def __aenter__(self):
-        self.entered = True
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self.exited = True
-
-
 class StreamClientLifecycleTest(unittest.IsolatedAsyncioTestCase):
-    async def test_call_model_once_closes_async_client(self):
-        fake_client = FakeAsyncOpenAI()
+    async def test_call_model_once_uses_dashscope_app_responses_endpoint(self):
+        captured = {}
 
-        with patch.object(stream, "_client", return_value=fake_client):
+        class FakeResponses:
+            async def create(self, **kwargs):
+                captured.update(kwargs)
+                return type("Response", (), {"output_text": "visible feedback"})()
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                captured["client_kwargs"] = kwargs
+                self.responses = FakeResponses()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+        async def forbidden_call(*_args, **_kwargs):
+            raise AssertionError("call_model_once must use DashScope app-compatible Responses")
+
+        with (
+            patch.object(stream.settings, "DASHSCOPE_API_KEY", "test-key"),
+            patch.object(stream.settings, "DASHSCOPE_APP_ID", "app-id"),
+            patch.object(stream, "AsyncOpenAI", FakeClient, create=True),
+            patch.object(stream, "call_bailian_app_once", forbidden_call, create=True),
+        ):
             result = await stream.call_model_once([{"role": "user", "content": "hello"}], temperature=0.2)
 
         self.assertEqual(result, "visible feedback")
-        self.assertTrue(fake_client.entered)
-        self.assertTrue(fake_client.exited)
+        self.assertIn("/api/v2/apps/agent/", captured["client_kwargs"]["base_url"])
+        self.assertIn("/compatible-mode/v1", captured["client_kwargs"]["base_url"])
+        self.assertEqual(captured["client_kwargs"]["api_key"], "test-key")
+        self.assertIn("[user]", captured["input"])
+        self.assertIn("hello", captured["input"])
+        self.assertFalse(captured["stream"])
+
+    async def test_stream_model_uses_dashscope_app_responses_endpoint(self):
+        captured = {}
+
+        class FakeEvent:
+            def __init__(self, event_type: str, delta: str = ""):
+                self.type = event_type
+                self.delta = delta
+
+        class FakeResponses:
+            async def create(self, **kwargs):
+                captured.update(kwargs)
+
+                async def events():
+                    yield FakeEvent("response.output_text.delta", "第一")
+                    yield FakeEvent("response.output_text.delta", "第二")
+
+                return events()
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                captured["client_kwargs"] = kwargs
+                self.responses = FakeResponses()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+        async def forbidden_stream(*_args, **_kwargs):
+            raise AssertionError("stream_model must use DashScope app-compatible Responses")
+            yield
+
+        with (
+            patch.object(stream.settings, "DASHSCOPE_API_KEY", "test-key"),
+            patch.object(stream.settings, "DASHSCOPE_APP_ID", "app-id"),
+            patch.object(stream, "AsyncOpenAI", FakeClient, create=True),
+            patch.object(stream, "stream_bailian_app", forbidden_stream, create=True),
+        ):
+            tokens = [
+                token
+                async for token in stream.stream_model([{"role": "user", "content": "hello"}], temperature=0.2)
+            ]
+
+        self.assertEqual("".join(tokens), "第一第二")
+        self.assertIn("/api/v2/apps/agent/", captured["client_kwargs"]["base_url"])
+        self.assertIn("/compatible-mode/v1", captured["client_kwargs"]["base_url"])
+        self.assertEqual(captured["client_kwargs"]["api_key"], "test-key")
+        self.assertIn("[user]", captured["input"])
+        self.assertIn("hello", captured["input"])
+        self.assertTrue(captured["stream"])
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ class StageStrategy:
 
 class DeepSeekProvider:
     def __init__(self, client_factory: Callable[[], AsyncOpenAI] | None = None):
-        self._client_factory = client_factory or _default_client_factory
+        self._client_factory = client_factory
 
     async def complete_json(self, messages: list[dict], strategy: StageStrategy) -> dict:
         raw = await self._complete(messages, strategy)
@@ -52,6 +52,14 @@ class DeepSeekProvider:
         return raw.strip()
 
     async def _complete(self, messages: list[dict], strategy: StageStrategy) -> str:
+        if self._should_use_dashscope_app():
+            async with _dashscope_app_client() as client:
+                response = await client.responses.create(
+                    input=_messages_to_app_prompt(messages, strategy),
+                    stream=False,
+                )
+            return _response_text(response)
+
         kwargs: dict[str, Any] = {
             "model": strategy.model,
             "messages": messages,
@@ -72,7 +80,8 @@ class DeepSeekProvider:
             kwargs["response_format"] = {"type": "json_object"}
 
         try:
-            async with self._client_factory() as client:
+            client_factory = self._client_factory or _default_client_factory
+            async with client_factory() as client:
                 response = await client.chat.completions.create(**kwargs)
         except Exception as exc:
             status_code = getattr(exc, "status_code", None)
@@ -82,6 +91,9 @@ class DeepSeekProvider:
 
         message = response.choices[0].message
         return message.content or ""
+
+    def _should_use_dashscope_app(self) -> bool:
+        return self._client_factory is None and not settings.DEEPSEEK_API_KEY
 
 
 class HeuristicEditingProvider:
@@ -106,6 +118,42 @@ class HeuristicEditingProvider:
 
 
 def _default_client_factory() -> AsyncOpenAI:
-    api_key = settings.DEEPSEEK_API_KEY or settings.DASHSCOPE_API_KEY
-    base_url = settings.DEEPSEEK_BASE_URL if settings.DEEPSEEK_API_KEY else settings.DASHSCOPE_BASE_URL
-    return AsyncOpenAI(api_key=api_key, base_url=base_url)
+    return AsyncOpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url=settings.DEEPSEEK_BASE_URL)
+
+
+def _dashscope_app_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.DASHSCOPE_API_KEY, base_url=settings.dashscope_app_base_url)
+
+
+def _messages_to_app_prompt(messages: list[dict], strategy: StageStrategy) -> str:
+    parts = [
+        "[editing_strategy]",
+        f"model={strategy.model}",
+        f"thinking={strategy.thinking}",
+        f"reasoning_effort={strategy.reasoning_effort or ''}",
+        f"response_format={'json_object' if strategy.json_output else 'text'}",
+        f"max_tokens={strategy.max_tokens}",
+    ]
+    if strategy.temperature is not None:
+        parts.append(f"temperature={strategy.temperature}")
+    if strategy.top_p is not None:
+        parts.append(f"top_p={strategy.top_p}")
+    for message in messages:
+        role = str(message.get("role") or "user")
+        content = message.get("content") or ""
+        parts.append(f"\n[{role}]\n{content}")
+    return "\n".join(parts)
+
+
+def _response_text(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return str(output_text)
+
+    parts: list[str] = []
+    for item in getattr(response, "output", []) or []:
+        for content in getattr(item, "content", []) or []:
+            text = getattr(content, "text", None)
+            if text:
+                parts.append(str(text))
+    return "\n".join(parts)

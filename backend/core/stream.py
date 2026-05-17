@@ -1,7 +1,7 @@
 """
 core/stream.py
 ==============
-Low-level DashScope / OpenAI-compatible model wrappers.
+Low-level model wrappers for the configured DashScope App-compatible Responses API.
 
 Key changes vs original:
   - _ThinkingSanitizer: handles <think>...</think> tags that may span chunk
@@ -14,6 +14,7 @@ Key changes vs original:
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -79,8 +80,13 @@ class _ThinkingSanitizer:
         return out
 
 
-def _client() -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=settings.DASHSCOPE_API_KEY, base_url=settings.DASHSCOPE_BASE_URL)
+def _messages_to_prompt(messages: list[dict]) -> str:
+    parts: list[str] = []
+    for message in messages:
+        role = str(message.get("role") or "user")
+        content = message.get("content") or ""
+        parts.append(f"[{role}]\n{content}")
+    return "\n\n".join(parts)
 
 
 async def stream_model(
@@ -94,36 +100,14 @@ async def stream_model(
     If *thinking* is True the response may contain <think>…</think> blocks
     which are transparently stripped by *_ThinkingSanitizer*.
     """
-    extra_body = {"enable_thinking": True, "thinking_budget": thinking_budget} if thinking else None
-    async with _client() as client:
-        stream = await client.chat.completions.create(
-            model=settings.MODEL_NAME,
-            messages=messages,
-            temperature=temperature,
-            stream=True,
-            max_tokens=4096,
-            extra_body=extra_body,
-        )
-        sanitizer = _ThinkingSanitizer()
-        async for chunk in stream:
-            choice = chunk.choices[0] if chunk.choices else None
-            if choice is None:
-                continue
-            delta = choice.delta
-            # DashScope exposes thinking content in reasoning_content, and the
-            # visible text in content. We merge both through the sanitizer so that
-            # either API surface (new reasoning_content field OR embedded tags)
-            # is handled correctly.
-            reasoning = getattr(delta, "reasoning_content", None) or ""
-            content = getattr(delta, "content", None) or ""
-
-            # If the API strips thinking into reasoning_content we discard it
-            # directly. If it embeds <think> tags in content, the sanitizer strips them.
-            if reasoning:
-                # Already separated by API — discard.
-                pass
-            if content:
-                visible = sanitizer.feed(content)
+    _ = temperature, thinking, thinking_budget
+    sanitizer = _ThinkingSanitizer()
+    async with _dashscope_app_client() as client:
+        events = await client.responses.create(input=_messages_to_prompt(messages), stream=True)
+        async for event in events:
+            text = _stream_event_text(event)
+            if text:
+                visible = sanitizer.feed(text)
                 if visible:
                     yield visible
 
@@ -141,19 +125,39 @@ async def call_model_once(
     max_tokens: int = 1000,
 ) -> str:
     """Non-streaming model call. Returns the full assistant text."""
-    extra_body = {"enable_thinking": True, "thinking_budget": thinking_budget} if thinking else None
-    async with _client() as client:
-        response = await client.chat.completions.create(
-            model=settings.MODEL_NAME,
-            messages=messages,
-            temperature=temperature,
-            stream=False,
-            max_tokens=max_tokens,
-            extra_body=extra_body,
-        )
-    raw = response.choices[0].message.content or ""
+    _ = temperature, thinking, thinking_budget, max_tokens
+    async with _dashscope_app_client() as client:
+        response = await client.responses.create(input=_messages_to_prompt(messages), stream=False)
+    raw = _response_text(response)
     # Strip any embedded <think>...</think> from non-streaming responses as well.
     sanitizer = _ThinkingSanitizer()
     visible = sanitizer.feed(raw)
     visible += sanitizer.flush()
     return visible
+
+
+def _dashscope_app_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.DASHSCOPE_API_KEY, base_url=settings.dashscope_app_base_url)
+
+
+def _response_text(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return str(output_text)
+
+    parts: list[str] = []
+    for item in getattr(response, "output", []) or []:
+        for content in getattr(item, "content", []) or []:
+            text = getattr(content, "text", None)
+            if text:
+                parts.append(str(text))
+    return "\n".join(parts)
+
+
+def _stream_event_text(event: Any) -> str:
+    if getattr(event, "type", "") == "response.output_text.delta":
+        return str(getattr(event, "delta", "") or "")
+    delta = getattr(event, "delta", None)
+    if isinstance(delta, str):
+        return delta
+    return ""

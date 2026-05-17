@@ -82,23 +82,21 @@ class EditingPipelineTest(unittest.TestCase):
         self.assertEqual(captured["response_format"], {"type": "json_object"})
         self.assertNotIn("temperature", captured)
 
-    def test_deepseek_adapter_defaults_to_dashscope_when_deepseek_key_missing(self):
+    def test_deepseek_adapter_uses_dashscope_app_responses_when_deepseek_key_missing(self):
         import editing.deepseek as deepseek_module
         from editing.deepseek import DeepSeekProvider, StageStrategy
 
         captured = {}
 
-        class FakeCompletions:
+        class FakeResponses:
             async def create(self, **kwargs):
-                captured["request"] = kwargs
-                return SimpleNamespace(choices=[
-                    SimpleNamespace(message=SimpleNamespace(content='{"ok":true}', reasoning_content=""))
-                ])
+                captured.update(kwargs)
+                return SimpleNamespace(output_text='{"ok":true}')
 
-        class FakeAsyncOpenAI:
+        class FakeClient:
             def __init__(self, **kwargs):
-                captured["client"] = kwargs
-                self.chat = SimpleNamespace(completions=FakeCompletions())
+                captured["client_kwargs"] = kwargs
+                self.responses = FakeResponses()
 
             async def __aenter__(self):
                 return self
@@ -106,16 +104,23 @@ class EditingPipelineTest(unittest.TestCase):
             async def __aexit__(self, *_args):
                 return None
 
+        async def forbidden_call(*_args, **_kwargs):
+            raise AssertionError("DeepSeek DashScope fallback must use app-compatible Responses")
+
         fake_settings = SimpleNamespace(
             DEEPSEEK_API_KEY="",
             DEEPSEEK_BASE_URL="https://api.deepseek.com",
             DASHSCOPE_API_KEY="dashscope-key",
             DASHSCOPE_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            DASHSCOPE_APP_ID="app-id",
+            dashscope_app_base_url="https://dashscope.aliyuncs.com/api/v2/apps/agent/app-id/compatible-mode/v1",
+            bailian_app_configured=True,
         )
 
         with (
             patch.object(deepseek_module, "settings", fake_settings),
-            patch.object(deepseek_module, "AsyncOpenAI", FakeAsyncOpenAI),
+            patch.object(deepseek_module, "AsyncOpenAI", FakeClient),
+            patch.object(deepseek_module, "call_bailian_app_once", forbidden_call, create=True),
         ):
             provider = DeepSeekProvider()
             result = asyncio.run(provider.complete_json(
@@ -124,9 +129,15 @@ class EditingPipelineTest(unittest.TestCase):
             ))
 
         self.assertEqual(result, {"ok": True})
-        self.assertEqual(captured["client"]["api_key"], "dashscope-key")
-        self.assertEqual(captured["client"]["base_url"], "https://dashscope.aliyuncs.com/compatible-mode/v1")
-        self.assertEqual(captured["request"]["model"], "deepseek-v4-pro")
+        self.assertEqual(
+            captured["client_kwargs"]["base_url"],
+            "https://dashscope.aliyuncs.com/api/v2/apps/agent/app-id/compatible-mode/v1",
+        )
+        self.assertEqual(captured["client_kwargs"]["api_key"], "dashscope-key")
+        self.assertIn("[user]", captured["input"])
+        self.assertIn("return json", captured["input"])
+        self.assertIn("json_object", captured["input"])
+        self.assertFalse(captured["stream"])
 
     def test_deepseek_adapter_maps_empty_json_to_retryable_error(self):
         from editing.deepseek import DeepSeekProvider, RetryableModelError, StageStrategy

@@ -87,6 +87,7 @@ async def lifespan(app: FastAPI):
         rag = DashScopeKnowledgeRAGRetriever(
             api_key=settings.DASHSCOPE_API_KEY,
             base_url=settings.DASHSCOPE_BASE_URL,
+            app_id=settings.DASHSCOPE_APP_ID,
             knowledge_base_id=settings.DASHSCOPE_KNOWLEDGE_BASE_ID,
             model=settings.DASHSCOPE_RAG_MODEL,
         )

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
             self.DASHSCOPE_API_KEY = os.environ["DASHSCOPE_API_KEY"]
             self.DASHSCOPE_BASE_URL = os.getenv("DASHSCOPE_BASE_URL", self.DASHSCOPE_BASE_URL)
             self.DASHSCOPE_APP_ID = os.getenv("DASHSCOPE_APP_ID", self.DASHSCOPE_APP_ID)
-            self.ENABLE_BAILIAN_APP = os.getenv("ENABLE_BAILIAN_APP", "0").lower() in {"1", "true", "yes", "on"}
+            self.ENABLE_BAILIAN_APP = os.getenv("ENABLE_BAILIAN_APP", "1").lower() in {"1", "true", "yes", "on"}
             self.DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", self.DEEPSEEK_API_KEY)
             self.DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", self.DEEPSEEK_BASE_URL)
             self.DEEPSEEK_V4_PRO_MODEL = os.getenv("DEEPSEEK_V4_PRO_MODEL", self.DEEPSEEK_V4_PRO_MODEL)
@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     @property
     def bailian_app_configured(self) -> bool:
         return bool(self.ENABLE_BAILIAN_APP and self.DASHSCOPE_API_KEY and self.DASHSCOPE_APP_ID)
+
+    @property
+    def dashscope_app_base_url(self) -> str:
+        return f"https://dashscope.aliyuncs.com/api/v2/apps/agent/{self.DASHSCOPE_APP_ID}/compatible-mode/v1"
 
     @property
     def deepseek_configured(self) -> bool:

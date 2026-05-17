@@ -14,12 +14,13 @@ class DashScopeKnowledgeRAGRetriever:
         self,
         api_key: str,
         base_url: str,
+        app_id: str,
         knowledge_base_id: str,
         model: str,
     ) -> None:
         self.knowledge_base_id = knowledge_base_id
         self.model = model
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+        self._client = OpenAI(api_key=api_key, base_url=_app_base_url(base_url, app_id))
 
     def health(self) -> dict:
         return {
@@ -97,6 +98,13 @@ def _response_text(response: Any) -> str:
             if text:
                 parts.append(str(text))
     return "\n".join(parts)
+
+
+def _app_base_url(base_url: str, app_id: str) -> str:
+    if "/api/v2/apps/agent/" in base_url:
+        return base_url.rstrip("/")
+    origin = base_url.split("/compatible-mode", 1)[0].rstrip("/")
+    return f"{origin}/api/v2/apps/agent/{app_id}/compatible-mode/v1"
 
 
 def _parse_items(text: str) -> list[dict]:
