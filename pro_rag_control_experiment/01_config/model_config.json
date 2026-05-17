@@ -1,0 +1,7 @@
+{
+  "declared_model": "deepseek-v4-pro",
+  "effective_model": "",
+  "model_claim_level": "declared_only",
+  "dashscope_app_id": "b3102617f35a4ffbab5befabebdcacc4",
+  "note": "Offline runner records declared model only; provider-level model confirmation requires live response usage metadata."
+}

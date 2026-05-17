@@ -1,0 +1,67 @@
+{
+  "Q001": [
+    "NRM-APA-001",
+    "NRM-APA-002"
+  ],
+  "Q002": [
+    "NRM-APA-001",
+    "NRM-CIT-CLAIM-001"
+  ],
+  "Q003": [
+    "NRM-GBT-001",
+    "NRM-CIT-TRACE-001"
+  ],
+  "Q004": [
+    "NRM-CIT-CLAIM-001",
+    "NRM-APA-001"
+  ],
+  "Q005": [
+    "NRM-CIT-SCOPE-001",
+    "NRM-CIT-CLAIM-001"
+  ],
+  "Q006": [
+    "STR-ABS-001",
+    "STR-ABS-ORDER-001"
+  ],
+  "Q007": [
+    "STR-INTRO-GAP-001",
+    "STR-INTRO-CONTRIB-001"
+  ],
+  "Q008": [
+    "STR-IMRAD-001",
+    "PARA-RESULT-PLACE-001"
+  ],
+  "Q009": [
+    "STR-RESULT-001",
+    "STR-EVAL-METRIC-001"
+  ],
+  "Q010": [
+    "STR-CONC-001",
+    "STR-LIMIT-001"
+  ],
+  "Q011": [
+    "PARA-BKG-001",
+    "PARA-FUNC-ORDER-001"
+  ],
+  "Q012": [
+    "PARA-METHOD-001",
+    "STR-IMRAD-001"
+  ],
+  "Q013": [
+    "PARA-RESULT-001",
+    "PARA-TOPIC-001"
+  ],
+  "Q014": [
+    "PARA-DISCUSS-001",
+    "PARA-INTERPRET-001"
+  ],
+  "Q015": [
+    "PARA-LIMIT-001",
+    "STR-LIMIT-001"
+  ],
+  "Q016": [],
+  "Q017": [],
+  "Q018": [],
+  "Q019": [],
+  "Q020": []
+}

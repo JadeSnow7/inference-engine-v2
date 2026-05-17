@@ -1,0 +1,25 @@
+{
+  "G1": {
+    "norm_retriever": null,
+    "rag": null,
+    "kg": "disabled"
+  },
+  "G2": {
+    "norm_retriever": null,
+    "rag": "NormGraphRAG",
+    "graph_hops": 1,
+    "theta": 0.6,
+    "retrieval_top_k": 5,
+    "node_validation": "enabled"
+  },
+  "G3": {
+    "norm_retriever": "NormNodeRetriever",
+    "rag": null,
+    "external_rag": "disabled"
+  },
+  "G4": {
+    "rag": "DashScopeKnowledgeRAGRetriever",
+    "knowledge_base": "unconfirmed",
+    "source_display": "boundary_only"
+  }
+}

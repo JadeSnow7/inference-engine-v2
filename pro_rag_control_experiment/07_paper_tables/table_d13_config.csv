@@ -1,0 +1,5 @@
+组别,模型,知识增强,GraphRAG,外部来源,目的,实际执行链路,边界说明
+G1,deepseek-v4-pro,无,否,否,模型无检索边界,offline deterministic runner,不确认真实 provider Pro
+G2,deepseek-v4-pro,本地 norm-node GraphRAG,是,否,规范节点追踪,NormGraphRAG,非生产 literature GraphRAG
+G3,deepseek-v4-pro,Norm Retriever,否,否,结构化 references,CitationVerifier + NormNodeRetriever,不使用 /api/chat mode=norms 判断
+G4,deepseek-v4-pro,百炼应用文档来源,否,百炼,来源回传边界,offline boundary record,未确认 jxfz 不写通过
