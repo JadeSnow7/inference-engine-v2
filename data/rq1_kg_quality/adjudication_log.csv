@@ -1,0 +1,3 @@
+item_id,disagreement_type,annotator_a,annotator_b,adjudicated_value,rationale
+C002,node_type,NormRule,SectionFunctionRule,NormRule,"The rule governs method paragraph content rather than the section as a whole."
+C004,dimension,section_structure,argument_coherence,section_structure,"The claim appears in the conclusion section and is evaluated as a conclusion-function rule."

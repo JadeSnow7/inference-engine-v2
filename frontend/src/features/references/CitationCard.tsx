@@ -18,6 +18,9 @@ export function CitationCard({ reference }: CitationCardProps) {
       {typeof reference.score === 'number' && (
         <Badge tone="primary" className="mt-2">相关度 {Math.round(reference.score * 100)}%</Badge>
       )}
+      {reference.evidenceStatus === 'unresolved' && (
+        <Badge tone="warning" className="mt-2">unresolved</Badge>
+      )}
     </article>
   )
 }

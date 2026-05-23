@@ -1,6 +1,8 @@
 import importlib.util
 import io
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -28,6 +30,11 @@ class RunRQ2RealTest(unittest.TestCase):
 
         self.assertEqual(args.method, "baseline_b")
         self.assertEqual(args.limit, 2)
+
+    def test_parse_limit_defaults_to_full_query_set(self):
+        args = real.parse_args(["--method", "all", "--query-set", "query_set_v2.json", "--real"])
+
+        self.assertIsNone(args.limit)
 
     def test_dry_run_row_uses_real_system_dry_run_type(self):
         query = {"query_id": "Q001", "text": "sample", "expected_ref_nodes": ["A"]}
@@ -106,6 +113,62 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertEqual(row["generated_refs"], ["A"])
         self.assertTrue(row["validation_results"]["A"]["pass"])
 
+    def test_llm_generation_retries_transient_failures(self):
+        query = {"query_id": "Q001", "text": "citation evidence", "expected_ref_nodes": ["A"]}
+
+        class FakeRAG:
+            def retrieve(self, text, *, top_k, graph_expand):
+                return [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "citation evidence", "score": 0.8}]
+
+        attempts = []
+
+        def flaky_generator(*, query, method, retrieved_nodes):
+            attempts.append(query["query_id"])
+            if len(attempts) < 3:
+                raise TimeoutError("temporary timeout")
+            return "评价维度：规范溯源。\n问题定位：citation evidence\n规范依据：[REF:A]\n修改建议：revise citation."
+
+        row = real.build_real_row(
+            query,
+            "full_graphrag",
+            FakeRAG(),
+            theta=0.6,
+            with_llm=True,
+            llm_generator=flaky_generator,
+            llm_max_attempts=3,
+            llm_retry_delay_seconds=0,
+        )
+
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(row["run_type"], "real_system_llm")
+        self.assertEqual(row["generated_refs"], ["A"])
+
+    def test_resume_rows_reuses_only_live_llm_prefix(self):
+        queries = [{"query_id": "Q001"}, {"query_id": "Q002"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "full_graphrag.jsonl"
+            path.write_text(
+                json.dumps({"method": "full_graphrag", "query_id": "Q001", "run_type": "real_system_llm"}) + "\n",
+                encoding="utf-8",
+            )
+
+            rows = real.read_resumable_live_rows(path, method="full_graphrag", queries=queries)
+
+        self.assertEqual([row["query_id"] for row in rows], ["Q001"])
+
+    def test_resume_rows_ignores_fallback_or_mismatched_outputs(self):
+        queries = [{"query_id": "Q001"}, {"query_id": "Q002"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "full_graphrag.jsonl"
+            path.write_text(
+                json.dumps({"method": "full_graphrag", "query_id": "Q001", "run_type": "real_system"}) + "\n",
+                encoding="utf-8",
+            )
+
+            rows = real.read_resumable_live_rows(path, method="full_graphrag", queries=queries)
+
+        self.assertEqual(rows, [])
+
     def test_build_llm_prompt_contains_query_nodes_and_ref_instruction(self):
         query = {"query_id": "Q001", "text": "citation evidence"}
         nodes = [{"node_id": "A", "node_type": "规范条款", "dimension": "引用格式", "text": "Every claim needs a source.", "score": 0.8}]
@@ -117,6 +180,31 @@ class RunRQ2RealTest(unittest.TestCase):
         self.assertIn("citation evidence", joined)
         self.assertIn("A", joined)
         self.assertIn("[REF:A]", joined)
+
+    def test_query_set_path_argument_and_all_methods_are_supported(self):
+        args = real.parse_args(["--method", "all", "--query-set", "query_set_v2.json", "--real"])
+
+        self.assertEqual(args.method, "all")
+        self.assertEqual(args.query_set, "query_set_v2.json")
+
+    def test_build_run_manifest_records_reproducibility_fields(self):
+        manifest = real.build_run_manifest(
+            root=Path("/repo"),
+            run_id="run-1",
+            query_set_hash="abc",
+            norm_nodes_hash="def",
+            run_type="real",
+            model="fallback",
+            random_seed=7,
+        )
+
+        self.assertEqual(manifest["run_id"], "run-1")
+        self.assertEqual(manifest["run_type"], "real")
+        self.assertEqual(manifest["query_set_hash"], "abc")
+        self.assertEqual(manifest["norm_nodes_hash"], "def")
+        self.assertEqual(manifest["theta_values"], [0.5, 0.55, 0.6, 0.65, 0.7])
+        self.assertFalse(manifest["offline_stub_allowed"])
+        self.assertIn("full_graphrag", manifest["method_configs"])
 
 
 if __name__ == "__main__":

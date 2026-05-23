@@ -10,6 +10,12 @@ import {
   type PersistedDocument,
   type PersistedDocumentVersion,
 } from '../api/documents'
+import type {
+  EditingGateReport,
+  EditingPatchItem,
+  EditingReferenceItem,
+  EditingStageItem,
+} from '../api/editing'
 import { fetchSessionArtifact, fetchSessionMessages, type MessageItem } from '../api/sessions'
 import { workspaceMock } from '../mocks/workspaceMock'
 import type { GapItem, PaperItem, ReferenceEventItem } from '../types/events'
@@ -97,6 +103,10 @@ interface WorkspaceState {
   graphNodes: WorkspaceGraphNode[]
   graphEdges: WorkspaceGraphEdge[]
   references: ReferenceItem[]
+  currentEditingJobId: string | null
+  editingStages: EditingStageItem[]
+  editingPatches: EditingPatchItem[]
+  editingGateReport: EditingGateReport | null
   setActiveConversation: (id: string) => void
   setActiveVersion: (id: string) => void
   startVersionPreview: (id: string) => void
@@ -139,6 +149,13 @@ interface WorkspaceState {
   upsertRagPapers: (papers: PaperItem[]) => void
   upsertRagGaps: (gaps: GapItem[]) => void
   upsertReferences: (references: ReferenceEventItem[]) => void
+  startEditingRun: (input: { jobId: string; stages: EditingStageItem[]; targetBlockId?: string | null }) => void
+  applyEditingStage: (stage: EditingStageItem) => void
+  applyEditingPatch: (patch: EditingPatchItem) => void
+  applyEditingGate: (gate: EditingGateReport) => void
+  upsertEditingReferences: (references: EditingReferenceItem[]) => void
+  finishEditingRun: () => void
+  failEditingRun: (message: string) => void
   clearRagArtifacts: () => void
   nextChange: () => void
   previousChange: () => void
@@ -272,6 +289,10 @@ function initialWorkspaceState() {
     graphNodes: cloneGraphNodes(),
     graphEdges: cloneGraphEdges(),
     references: cloneReferences(),
+    currentEditingJobId: null,
+    editingStages: [],
+    editingPatches: [],
+    editingGateReport: null,
   }
 }
 
@@ -613,6 +634,57 @@ function createSuggestionFromGeneratedText(
     }],
     reasons: [...metadata.reasons],
     reasoningSteps: [...metadata.reasoningSteps],
+  }
+}
+
+function createSuggestionFromEditingPatches(
+  jobId: string,
+  patches: EditingPatchItem[],
+  documentBlocks: DocumentBlock[],
+): DocumentSuggestion | null {
+  if (patches.length === 0) return null
+
+  const blockIds = Array.from(new Set(patches.map(patch => patch.block_id)))
+  const beforeBlocks = blockIds
+    .map(blockId => documentBlocks.find(block => block.id === blockId))
+    .filter((block): block is DocumentBlock => !!block)
+    .map(cloneDocumentBlock)
+
+  if (beforeBlocks.length === 0) return null
+
+  const latestPatchByBlockId = new Map<string, EditingPatchItem>()
+  patches.forEach(patch => latestPatchByBlockId.set(patch.block_id, patch))
+
+  const afterBlocks = beforeBlocks.map(block => ({
+    ...cloneDocumentBlock(block),
+    content: latestPatchByBlockId.get(block.id)?.revised_text ?? block.content,
+  }))
+
+  return {
+    id: `editing-suggestion-${jobId}`,
+    title: 'DeepSeek V4 编辑建议',
+    summary: '已生成可逐条审阅的学术编辑补丁。',
+    targetBlockIds: beforeBlocks.map(block => block.id),
+    operation: 'replace_blocks',
+    beforeBlocks,
+    afterBlocks,
+    reason: 'DeepSeek V4 学术编辑流水线生成。',
+    confidence: Math.max(0.5, Math.min(0.95, Math.max(...patches.map(patch => patch.confidence ?? 0.75)))),
+    createdAt: new Date().toISOString(),
+    changes: patches.map((patch): SuggestionChange => ({
+      id: patch.id,
+      blockId: patch.block_id,
+      type: 'modify',
+      originalText: patch.original_text,
+      revisedText: patch.revised_text,
+      reason: patch.reason,
+    })),
+    reasons: patches.map(patch => `${patch.reason}：${patch.risk_level ?? 'low'} risk`),
+    reasoningSteps: [
+      '创建 DeepSeek V4 编辑任务。',
+      '按阶段接收结构化补丁。',
+      '等待质量门禁和人工审阅后再合并正文。',
+    ],
   }
 }
 
@@ -1467,6 +1539,97 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       url: reference.url,
     }))),
   })),
+  startEditingRun: ({ jobId, stages, targetBlockId }) => set((state) => {
+    const targetBlock = (targetBlockId
+      ? state.documentBlocks.find(block => block.id === targetBlockId && block.type === 'paragraph')
+      : null)
+      ?? state.documentBlocks.find(block => block.id === state.selectedBlockId && block.type === 'paragraph')
+      ?? firstParagraphBlock(state.documentBlocks)
+
+    return {
+      currentEditingJobId: jobId,
+      editingStages: stages.map(stage => ({ ...stage })),
+      editingPatches: [],
+      editingGateReport: null,
+      selectedBlockId: targetBlock?.id ?? state.selectedBlockId,
+      pendingBeforeBlocks: targetBlock ? [cloneDocumentBlock(targetBlock)] : [],
+      currentSuggestion: null,
+      currentChangeIndex: 0,
+      aiRunStatus: 'retrieving',
+      aiStageLabel: '正在创建编辑任务',
+      aiErrorMessage: '',
+    }
+  }),
+  applyEditingStage: (stage) => set((state) => {
+    const existing = state.editingStages.some(item => item.stage_id === stage.stage_id)
+    const editingStages = existing
+      ? state.editingStages.map(item => item.stage_id === stage.stage_id ? { ...item, ...stage } : item)
+      : [...state.editingStages, { ...stage }]
+
+    return {
+      editingStages,
+      aiRunStatus: stage.status === 'running' ? 'reasoning' : state.aiRunStatus,
+      aiStageLabel: stage.label || state.aiStageLabel,
+    }
+  }),
+  applyEditingPatch: (patch) => set((state) => {
+    const editingPatches = mergeById(state.editingPatches, [{ ...patch }])
+    const currentSuggestion = createSuggestionFromEditingPatches(
+      state.currentEditingJobId ?? 'editing',
+      editingPatches,
+      state.documentBlocks,
+    )
+
+    return {
+      editingPatches,
+      currentSuggestion,
+      currentChangeIndex: 0,
+      aiRunStatus: 'generating',
+      aiStageLabel: '正在生成编辑补丁',
+    }
+  }),
+  applyEditingGate: (gate) => set(() => {
+    if (gate.status === 'fail') {
+      return {
+        editingGateReport: { ...gate, messages: [...gate.messages] },
+        currentSuggestion: null,
+        currentChangeIndex: 0,
+        aiRunStatus: 'error',
+        aiStageLabel: '质量门禁未通过',
+        aiErrorMessage: gate.messages.join('；') || '质量门禁未通过，已阻止合并。',
+      }
+    }
+
+    return {
+      editingGateReport: { ...gate, messages: [...gate.messages] },
+      aiRunStatus: 'done',
+      aiStageLabel: gate.status === 'pass' ? '质量门禁通过' : '质量门禁需复核',
+      aiErrorMessage: '',
+    }
+  }),
+  upsertEditingReferences: (references) => set((state) => ({
+    references: mergeById(state.references, references.map(reference => ({
+      id: reference.id,
+      title: reference.title,
+      year: reference.year,
+      venue: reference.source,
+      score: reference.score,
+      excerpt: reference.excerpt,
+      url: reference.url,
+      evidenceStatus: reference.status,
+    }))),
+  })),
+  finishEditingRun: () => set((state) => ({
+    aiRunStatus: state.editingGateReport?.status === 'fail' ? 'error' : 'done',
+    aiStageLabel: state.editingGateReport?.status === 'fail' ? '质量门禁未通过' : '编辑流程完成',
+  })),
+  failEditingRun: (message) => set({
+    aiRunStatus: 'error',
+    aiStageLabel: '编辑流程失败',
+    aiErrorMessage: message,
+    currentSuggestion: null,
+    currentChangeIndex: 0,
+  }),
   clearRagArtifacts: () => set({
     ragPapers: [],
     ragGaps: [],

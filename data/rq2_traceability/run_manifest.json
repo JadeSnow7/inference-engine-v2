@@ -1,0 +1,54 @@
+{
+  "dirty_flag": true,
+  "embedding_model": "script-local-token-jaccard",
+  "environment": "local",
+  "git_commit": "4fea7ae218635725451e1c13a73ebd8be40d8563",
+  "graph_expand_hops": 1,
+  "kg_version": "34bdb157e011",
+  "method_configs": {
+    "ablation_no_expand": {
+      "binding": true,
+      "graph_expand": false,
+      "retrieval": true
+    },
+    "baseline_a": {
+      "binding": false,
+      "graph_expand": false,
+      "retrieval": false
+    },
+    "baseline_b": {
+      "binding": false,
+      "graph_expand": false,
+      "retrieval": true
+    },
+    "full_graphrag": {
+      "binding": true,
+      "graph_expand": true,
+      "retrieval": true
+    }
+  },
+  "model": "dashscope",
+  "model_version": "dashscope",
+  "norm_nodes_hash": "34bdb157e01122bf73b10ca1d7a2df339e3e1cb1177e27d29497f10d0e11b02f",
+  "offline_stub_allowed": false,
+  "operator": "codex",
+  "prompt_template_hash": "edf0e4bbee14242b236ebd0ad9a5a047c17d7c5959ee4716983c9868ef4a141a",
+  "query_set_hash": "59fca8cbf2e6c7945a6086fbd9dce6f566cae1215a3562d5221026e951584c2b",
+  "random_seed": 42,
+  "retriever_config": {
+    "top_k_full": 2,
+    "top_k_no_expand": 1,
+    "type": "NormGraphRAG"
+  },
+  "run_id": "rq2-v2-live-full-20260514",
+  "run_type": "real",
+  "theta_values": [
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7
+  ],
+  "timestamp": "2026-05-14T15:29:45.708351+00:00",
+  "validator_version": "rq2_traceability_lib.validate_refs@v2"
+}

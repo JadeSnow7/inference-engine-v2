@@ -18,12 +18,24 @@ from typing import Any
 
 
 RQ2_DIR = Path("data/rq2_traceability")
+RQ1_DIR = Path("data/rq1_kg_quality")
 REQUIRED_QUERY_FIELDS = {
     "query_id",
     "text",
     "ground_truth_issues",
     "expected_ref_nodes",
     "has_known_issue",
+}
+REQUIRED_QUERY_V2_FIELDS = {
+    "query_id",
+    "text",
+    "category",
+    "difficulty",
+    "expected_issue_types",
+    "expected_refs",
+    "has_known_issue",
+    "is_control",
+    "tags",
 }
 TRACEABILITY_METHOD_FILES = {
     "baseline_a": "baseline_a.jsonl",
@@ -43,6 +55,16 @@ REQUIRED_SYSTEM_OUTPUT_FIELDS = (
 )
 THETA_VALUES = [0.50, 0.55, 0.60, 0.65, 0.70]
 DIMENSIONS = ("引用格式", "章节结构", "段落功能")
+QUERY_V2_CATEGORIES = (
+    "citation_format",
+    "section_structure",
+    "paragraph_function",
+    "argument_coherence",
+    "evidence_integration",
+    "academic_style",
+)
+QUERY_V2_EXTRA_CATEGORIES = ("ambiguous_borderline", "no_issue_control", "adversarial_control")
+QUERY_V2_DIFFICULTIES = ("easy", "medium", "hard")
 REQUIRED_KG_NODE_TYPES = ("规范条款", "示例片段", "违例模式", "修改建议", "评价维度")
 
 
@@ -193,6 +215,139 @@ def validate_query_set(
     return issues
 
 
+def load_gold_node_ids(root: Path) -> set[str]:
+    path = root / RQ1_DIR / "kg_gold_nodes.json"
+    if not path.exists():
+        return set()
+    try:
+        nodes = read_json(path)
+    except json.JSONDecodeError:
+        return set()
+    if not isinstance(nodes, list):
+        return set()
+    return {str(node.get("node_id")) for node in nodes if isinstance(node, dict) and node.get("node_id")}
+
+
+def validate_query_set_v2(
+    root: Path,
+    *,
+    min_queries: int = 60,
+    min_controls: int = 8,
+    min_category_coverage: int = 6,
+    word_min: int = 60,
+    word_max: int = 300,
+) -> list[str]:
+    issues: list[str] = []
+    path = root / RQ2_DIR / "query_set_v2.json"
+    if not path.exists():
+        return [f"missing file: {path}"]
+    try:
+        queries = read_json(path)
+    except json.JSONDecodeError as exc:
+        return [f"{path} is not valid JSON: {exc}"]
+    if not isinstance(queries, list):
+        return [f"{path} must contain a JSON array"]
+    if len(queries) < min_queries:
+        issues.append(f"query_set_v2 has {len(queries)} records, expected at least {min_queries}")
+
+    gold_node_ids = load_gold_node_ids(root)
+    if not gold_node_ids:
+        issues.append(f"missing or empty gold node file: {root / RQ1_DIR / 'kg_gold_nodes.json'}")
+
+    seen_ids: set[str] = set()
+    category_counts = {category: 0 for category in QUERY_V2_CATEGORIES}
+    control_count = 0
+    difficulties: set[str] = set()
+    ambiguous_count = 0
+    adversarial_count = 0
+
+    allowed_categories = set(QUERY_V2_CATEGORIES) | set(QUERY_V2_EXTRA_CATEGORIES)
+    for index, query in enumerate(queries, start=1):
+        if not isinstance(query, dict):
+            issues.append(f"query_v2 #{index} must be a JSON object")
+            continue
+        query_id = str(query.get("query_id", f"#{index}"))
+        missing = sorted(REQUIRED_QUERY_V2_FIELDS - set(query))
+        if missing:
+            issues.append(f"{query_id} missing required fields: {', '.join(missing)}")
+            continue
+        if query_id in seen_ids:
+            issues.append(f"duplicate query_id: {query_id}")
+        seen_ids.add(query_id)
+
+        text = query["text"]
+        if not isinstance(text, str) or not text.strip():
+            issues.append(f"{query_id} text must be a non-empty string")
+        else:
+            word_count = count_words(text)
+            if word_count < word_min or word_count > word_max:
+                issues.append(f"{query_id} word_count={word_count}, expected {word_min}-{word_max}")
+            pii_matches = find_pii(text)
+            if pii_matches:
+                pii_summary = ", ".join(f"{match.kind}:{match.value}" for match in pii_matches)
+                issues.append(f"{query_id} contains possible PII: {pii_summary}")
+
+        category = query.get("category")
+        if category not in allowed_categories:
+            issues.append(f"{query_id} invalid category={category!r}")
+        elif category in category_counts:
+            category_counts[str(category)] += 1
+
+        difficulty = query.get("difficulty")
+        if difficulty not in QUERY_V2_DIFFICULTIES:
+            issues.append(f"{query_id} invalid difficulty={difficulty!r}")
+        else:
+            difficulties.add(str(difficulty))
+
+        tags = query.get("tags")
+        if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+            issues.append(f"{query_id} tags must be a string list")
+            tags = []
+        ambiguous_count += int("ambiguous" in tags or category == "ambiguous_borderline")
+        adversarial_count += int("adversarial" in tags or category == "adversarial_control")
+
+        for key in ("expected_issue_types", "expected_refs"):
+            value = query.get(key)
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                issues.append(f"{query_id} {key} must be a string list")
+
+        expected_refs = query.get("expected_refs") if isinstance(query.get("expected_refs"), list) else []
+        unknown_refs = sorted(set(str(ref) for ref in expected_refs) - gold_node_ids)
+        if unknown_refs:
+            issues.append(f"{query_id} unknown expected_refs: {', '.join(unknown_refs)}")
+
+        has_known_issue = query.get("has_known_issue")
+        is_control = query.get("is_control")
+        if not isinstance(has_known_issue, bool):
+            issues.append(f"{query_id} has_known_issue must be boolean")
+        if not isinstance(is_control, bool):
+            issues.append(f"{query_id} is_control must be boolean")
+        if is_control:
+            control_count += 1
+            if query.get("expected_refs"):
+                issues.append(f"{query_id} control query should have empty expected_refs")
+            if query.get("expected_issue_types"):
+                issues.append(f"{query_id} control query should have empty expected_issue_types")
+        if has_known_issue:
+            if not query.get("expected_issue_types"):
+                issues.append(f"{query_id} has_known_issue=true but expected_issue_types is empty")
+            if not query.get("expected_refs"):
+                issues.append(f"{query_id} has_known_issue=true but expected_refs is empty")
+
+    if control_count < min_controls:
+        issues.append(f"control queries={control_count}, expected at least {min_controls}")
+    for category, count in category_counts.items():
+        if count < min_category_coverage:
+            issues.append(f"category '{category}' coverage={count}, expected at least {min_category_coverage}")
+    if len(difficulties) < len(QUERY_V2_DIFFICULTIES):
+        issues.append(f"difficulty coverage={sorted(difficulties)}, expected {list(QUERY_V2_DIFFICULTIES)}")
+    if ambiguous_count == 0:
+        issues.append("query_set_v2 must include ambiguous/borderline samples")
+    if adversarial_count == 0:
+        issues.append("query_set_v2 must include adversarial control samples")
+    return issues
+
+
 def validate_system_outputs(root: Path, query_ids: set[str]) -> list[str]:
     issues: list[str] = []
     outputs_dir = root / RQ2_DIR / "system_outputs"
@@ -287,14 +442,17 @@ def validate_kg_node_counts(root: Path, *, require_completed: bool = False) -> l
 
 
 def load_query_ids(root: Path) -> set[str]:
-    queries = read_json(root / RQ2_DIR / "query_set.json")
+    path = root / RQ2_DIR / "query_set_v2.json"
+    if not path.exists():
+        path = root / RQ2_DIR / "query_set.json"
+    queries = read_json(path)
     return {str(query["query_id"]) for query in queries if isinstance(query, dict) and "query_id" in query}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--scope", choices=("query-set", "full", "kg-counts"), default="query-set")
+    parser.add_argument("--scope", choices=("query-set", "query-set-v2", "full", "kg-counts"), default="query-set")
     return parser.parse_args(argv)
 
 
@@ -304,6 +462,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.scope == "kg-counts":
         issues = validate_kg_node_counts(root)
+    elif args.scope == "query-set-v2":
+        issues = validate_query_set_v2(root)
+    elif args.scope == "full" and (root / RQ2_DIR / "query_set_v2.json").exists():
+        issues = validate_query_set_v2(root)
     else:
         issues = validate_query_set(root)
     if args.scope == "full" and not issues:

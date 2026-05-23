@@ -22,5 +22,11 @@
   {"node_id":"PARA-TOPIC-001","node_type":"修改建议","dimension":"段落功能","text":"A paragraph should use a clear topic sentence and keep sentence roles aligned with its main function.","related":["PARA-RESULT-001"]},
   {"node_id":"PARA-DISCUSS-001","node_type":"规范条款","dimension":"段落功能","text":"A discussion paragraph should interpret findings rather than merely repeat numerical results.","related":["PARA-INTERPRET-001"]},
   {"node_id":"PARA-INTERPRET-001","node_type":"修改建议","dimension":"段落功能","text":"Discussion should explain mechanisms implications and constraints without inventing new experimental data.","related":["PARA-DISCUSS-001"]},
-  {"node_id":"PARA-LIMIT-001","node_type":"规范条款","dimension":"段落功能","text":"A limitation paragraph should clearly state evidence boundaries and future work instead of promotional claims.","related":["STR-LIMIT-001"]}
+  {"node_id":"PARA-LIMIT-001","node_type":"规范条款","dimension":"段落功能","text":"A limitation paragraph should clearly state evidence boundaries and future work instead of promotional claims.","related":["STR-LIMIT-001"]},
+  {"node_id":"ARG-CLAIM-EVID-001","node_type":"规范条款","dimension":"论证连贯","text":"A claim should be connected to evidence and reasoning so readers can follow the argument chain.","related":["ARG-REASONING-001","EVI-SYNTH-001"]},
+  {"node_id":"ARG-REASONING-001","node_type":"违例模式","dimension":"论证连贯","text":"Evidence is weakly integrated when the paragraph lists findings without explaining how they support the claim.","related":["ARG-CLAIM-EVID-001","PARA-INTERPRET-001"]},
+  {"node_id":"EVI-SYNTH-001","node_type":"规范条款","dimension":"证据整合","text":"Literature evidence should be synthesized by comparing findings rather than stacking unrelated citations.","related":["ARG-CLAIM-EVID-001"]},
+  {"node_id":"EVI-QUOTE-001","node_type":"规范条款","dimension":"证据整合","text":"Paraphrased evidence should preserve the source meaning and avoid unsupported generalization.","related":["NRM-CIT-CLAIM-001","STYLE-HEDGE-001"]},
+  {"node_id":"STYLE-HEDGE-001","node_type":"规范条款","dimension":"学术表达","text":"Academic claims should use cautious language when evidence is limited or context dependent.","related":["STYLE-OBJECTIVE-001","STR-LIMIT-001"]},
+  {"node_id":"STYLE-OBJECTIVE-001","node_type":"规范条款","dimension":"学术表达","text":"Academic writing should avoid promotional language and keep evaluative claims evidence bound.","related":["STYLE-HEDGE-001","ARG-CLAIM-EVID-001"]}
 ]

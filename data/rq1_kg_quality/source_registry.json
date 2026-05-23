@@ -1,0 +1,7 @@
+[
+  {"source_id":"apa-public-guideline","source_type":"citation_guideline","authority_level":"international_style_guideline","scope":"APA in-text author-date citation conventions","used_for":["NRM-APA-001","NRM-APA-002"]},
+  {"source_id":"gbt-7714-summary","source_type":"citation_guideline","authority_level":"national_standard_summary","scope":"Numbered reference traceability and bibliography completeness","used_for":["NRM-GBT-001"]},
+  {"source_id":"school-thesis-guideline","source_type":"institutional_guideline","authority_level":"school_policy","scope":"Abstract, results, and thesis format expectations","used_for":["STR-ABS-001","STR-ABS-ORDER-001"]},
+  {"source_id":"school-writing-rubric","source_type":"course_rubric","authority_level":"course_assessment","scope":"Traceability, feedback dimensions, and revision criteria","used_for":["NRM-CIT-TRACE-001","STR-EVAL-METRIC-001","PARA-FUNC-ORDER-001","PARA-TOPIC-001","PARA-INTERPRET-001","STYLE-OBJECTIVE-001"]},
+  {"source_id":"academic-writing-handbook","source_type":"writing_handbook","authority_level":"domain_reference","scope":"IMRAD, paragraph function, argument coherence, evidence integration, and cautious style","used_for":["NRM-CIT-CLAIM-001","NRM-CIT-SCOPE-001","STR-INTRO-GAP-001","STR-INTRO-CONTRIB-001","STR-IMRAD-001","PARA-METHOD-001","PARA-RESULT-001","PARA-DISCUSS-001","PARA-LIMIT-001","ARG-CLAIM-EVID-001","ARG-REASONING-001","EVI-SYNTH-001","EVI-QUOTE-001","STYLE-HEDGE-001"]}
+]

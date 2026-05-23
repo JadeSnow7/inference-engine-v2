@@ -1,0 +1,5 @@
+candidate_id,source_id,text,node_type_annotator_a,node_type_annotator_b,dimension_annotator_a,dimension_annotator_b,adjudicated_node_type,adjudicated_dimension,notes
+C001,apa-public-guideline,"Author date citations should distinguish narrative and parenthetical usage.",CitationStyleRule,CitationStyleRule,citation_format,citation_format,CitationStyleRule,citation_format,agreement
+C002,academic-writing-handbook,"Method paragraphs should describe procedure before interpreting results.",NormRule,SectionFunctionRule,paragraph_function,section_structure,NormRule,paragraph_function,adjudicated as paragraph-level rule
+C003,school-writing-rubric,"Feedback should point to an explicit norm before recommending revision.",RubricDimension,RubricDimension,citation_format,citation_format,RubricDimension,citation_format,agreement
+C004,academic-writing-handbook,"A conclusion should not introduce unsupported deployment claims.",SectionFunctionRule,SectionFunctionRule,section_structure,argument_coherence,SectionFunctionRule,section_structure,dimension resolved by section function

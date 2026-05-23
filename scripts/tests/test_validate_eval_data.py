@@ -151,6 +151,130 @@ class ValidateEvalDataTest(unittest.TestCase):
 
             self.assertEqual(issues, [])
 
+    def test_query_set_v2_validates_labels_refs_and_distribution(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            rq1_dir = tmp_path / "data" / "rq1_kg_quality"
+            rq2_dir = tmp_path / "data" / "rq2_traceability"
+            rq1_dir.mkdir(parents=True)
+            rq2_dir.mkdir(parents=True)
+            (rq1_dir / "kg_gold_nodes.json").write_text(json.dumps([
+                {"node_id": "A", "node_type": "NormRule", "dimension": "citation_format", "text": "APA citation rule."},
+                {"node_id": "B", "node_type": "NormRule", "dimension": "section_structure", "text": "Abstract order rule."},
+            ]), encoding="utf-8")
+            queries = []
+            categories = [
+                "citation_format",
+                "section_structure",
+                "paragraph_function",
+                "argument_coherence",
+                "evidence_integration",
+                "academic_style",
+            ]
+            for category in categories:
+                for idx in range(2):
+                    queries.append({
+                        "query_id": f"{category}-{idx}",
+                        "text": " ".join(["Synthetic academic writing paragraph for evaluation."] * 20),
+                        "category": category,
+                        "difficulty": ["easy", "medium", "hard"][(idx + len(queries)) % 3],
+                        "expected_issue_types": [f"{category}.issue"],
+                        "expected_refs": ["A"],
+                        "expected_ref_nodes": ["A"],
+                        "ground_truth_issues": [f"{category}.issue"],
+                        "has_known_issue": True,
+                        "is_control": False,
+                        "tags": [],
+                    })
+            queries.append({
+                "query_id": "ambiguous-0",
+                "text": " ".join(["Synthetic academic writing paragraph with borderline feedback evidence."] * 20),
+                "category": "ambiguous_borderline",
+                "difficulty": "hard",
+                "expected_issue_types": ["evidence_integration.borderline"],
+                "expected_refs": ["B"],
+                "expected_ref_nodes": ["B"],
+                "ground_truth_issues": ["evidence_integration.borderline"],
+                "has_known_issue": True,
+                "is_control": False,
+                "tags": ["ambiguous"],
+            })
+            for idx in range(2):
+                queries.append({
+                    "query_id": f"control-{idx}",
+                    "text": " ".join(["Synthetic academic writing control paragraph."] * 20),
+                    "category": "no_issue_control",
+                    "difficulty": "easy",
+                    "expected_issue_types": [],
+                    "expected_refs": [],
+                    "expected_ref_nodes": [],
+                    "ground_truth_issues": [],
+                    "has_known_issue": False,
+                    "is_control": True,
+                    "tags": ["control"],
+                })
+            queries.append({
+                "query_id": "adversarial-0",
+                "text": " ".join(["Synthetic academic writing paragraph with bracketed math range not citation."] * 20),
+                "category": "adversarial_control",
+                "difficulty": "medium",
+                "expected_issue_types": [],
+                "expected_refs": [],
+                "expected_ref_nodes": [],
+                "ground_truth_issues": [],
+                "has_known_issue": False,
+                "is_control": True,
+                "tags": ["control", "adversarial"],
+            })
+            (rq2_dir / "query_set_v2.json").write_text(json.dumps(queries), encoding="utf-8")
+
+            issues = validate_eval_data.validate_query_set_v2(
+                tmp_path,
+                min_queries=len(queries),
+                min_controls=2,
+                min_category_coverage=2,
+                word_min=20,
+                word_max=300,
+            )
+
+            self.assertEqual(issues, [])
+
+    def test_query_set_v2_rejects_unknown_expected_ref_and_missing_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            rq1_dir = tmp_path / "data" / "rq1_kg_quality"
+            rq2_dir = tmp_path / "data" / "rq2_traceability"
+            rq1_dir.mkdir(parents=True)
+            rq2_dir.mkdir(parents=True)
+            (rq1_dir / "kg_gold_nodes.json").write_text(json.dumps([
+                {"node_id": "A", "node_type": "NormRule", "dimension": "citation_format", "text": "APA citation rule."},
+            ]), encoding="utf-8")
+            (rq2_dir / "query_set_v2.json").write_text(json.dumps([{
+                "query_id": "Q001",
+                "text": " ".join(["Synthetic academic writing paragraph."] * 30),
+                "category": "citation_format",
+                "difficulty": "easy",
+                "expected_issue_types": [],
+                "expected_refs": ["MISSING"],
+                "expected_ref_nodes": ["MISSING"],
+                "ground_truth_issues": [],
+                "has_known_issue": True,
+                "is_control": False,
+                "tags": ["bad-label"],
+            }]), encoding="utf-8")
+
+            issues = validate_eval_data.validate_query_set_v2(
+                tmp_path,
+                min_queries=1,
+                min_controls=0,
+                min_category_coverage=0,
+                word_min=20,
+                word_max=300,
+            )
+
+            self.assertTrue(any("unknown expected_refs" in issue for issue in issues))
+            self.assertTrue(any("has_known_issue=true but expected_issue_types is empty" in issue for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()

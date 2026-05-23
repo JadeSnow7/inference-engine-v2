@@ -89,6 +89,70 @@ describe('useWorkspaceStore', () => {
     expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
   })
 
+  it('stores editing patches as reviewable suggestions and accepts one patch', () => {
+    const targetBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(targetBlock).toBeDefined()
+
+    useWorkspaceStore.getState().startEditingRun({
+      jobId: 'edit-1',
+      stages: [{ stage_id: 'route_diagnosis', label: '路由诊断', status: 'pending' }],
+      targetBlockId: targetBlock!.id,
+    })
+    useWorkspaceStore.getState().applyEditingPatch({
+      id: 'patch-1',
+      stage_id: 'academic_enhance',
+      block_id: targetBlock!.id,
+      original_text: targetBlock!.content,
+      revised_text: '学术增强后的段落。',
+      reason: '学术增强',
+      risk_level: 'low',
+      confidence: 0.82,
+    })
+
+    expect(useWorkspaceStore.getState().editingPatches).toHaveLength(1)
+    expect(useWorkspaceStore.getState().currentSuggestion?.changes[0]).toEqual(expect.objectContaining({
+      blockId: targetBlock!.id,
+      revisedText: '学术增强后的段落。',
+    }))
+
+    useWorkspaceStore.getState().acceptCurrentChange()
+
+    expect(useWorkspaceStore.getState().documentBlocks.find(block => block.id === targetBlock!.id)?.content)
+      .toBe('学术增强后的段落。')
+  })
+
+  it('clears editing suggestion when quality gate fails', () => {
+    const targetBlock = useWorkspaceStore.getState().documentBlocks.find(block => block.type === 'paragraph')
+    expect(targetBlock).toBeDefined()
+
+    useWorkspaceStore.getState().startEditingRun({
+      jobId: 'edit-fail',
+      stages: [],
+      targetBlockId: targetBlock!.id,
+    })
+    useWorkspaceStore.getState().applyEditingPatch({
+      id: 'patch-fail',
+      stage_id: 'originality_humanize',
+      block_id: targetBlock!.id,
+      original_text: targetBlock!.content,
+      revised_text: '降重后但忠实性失败的文本。',
+      reason: '降重',
+      risk_level: 'medium',
+      confidence: 0.61,
+    })
+    useWorkspaceStore.getState().applyEditingGate({
+      status: 'fail',
+      fidelity_score: 0.52,
+      semantic_similarity: 0.7,
+      citation_unresolved_count: 0,
+      messages: ['忠实性下降，禁止合并。'],
+    })
+
+    expect(useWorkspaceStore.getState().currentSuggestion).toBeNull()
+    expect(useWorkspaceStore.getState().aiRunStatus).toBe('error')
+    expect(useWorkspaceStore.getState().aiErrorMessage).toContain('忠实性下降')
+  })
+
   it('acceptCurrentChange applies only the selected change and keeps remaining changes reviewable', () => {
     useWorkspaceStore.getState().setCurrentSuggestion(aiSuggestion)
     useWorkspaceStore.getState().setCurrentChangeIndex(1)

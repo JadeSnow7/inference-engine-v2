@@ -1,14 +1,18 @@
-import { BookCheck, Globe2, Library, Network, Send, Square, WandSparkles, type LucideIcon } from 'lucide-react'
+import { BookCheck, FilePenLine, Globe2, Library, Network, Send, Sparkles, Square, WandSparkles, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { connectEditingJobSSE, createEditingJob, type EditingMode, type EditingSSEController } from '../../api/editing'
 import { connectSSE, type SSEController } from '../../api/sse'
 import { analyzeWriting } from '../../api/writing'
 import { useLayoutStore } from '../../store/layout'
 import { useWorkspaceStore, type DocumentToolMode } from '../../store/workspace'
+import type { DocumentBlock } from '../../types/workspace'
 
-type QuickModeId = 'deep' | 'web' | 'citation' | 'graph' | 'norms'
+type QuickModeId = 'deep' | 'academic' | 'originality' | 'web' | 'citation' | 'graph' | 'norms'
 
 const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon; disabledReason?: string }> = [
-  { id: 'deep', label: '深度思考', icon: WandSparkles },
+  { id: 'deep', label: '深度编辑', icon: WandSparkles },
+  { id: 'academic', label: '学术增强', icon: FilePenLine },
+  { id: 'originality', label: '降重', icon: Sparkles },
   { id: 'web', label: '联网搜索', icon: Globe2, disabledReason: '后端未配置实时公网搜索，暂不可用' },
   { id: 'citation', label: '引用增强', icon: Library },
   { id: 'graph', label: '图谱检索', icon: Network },
@@ -17,18 +21,26 @@ const quickModes: Array<{ id: QuickModeId; label: string; icon: LucideIcon; disa
 
 export function AIChatInput() {
   const [input, setInput] = useState('')
-  const [selectedMode, setSelectedMode] = useState<QuickModeId>('deep')
+  const [selectedMode, setSelectedMode] = useState<QuickModeId>('graph')
   const workbenchContext = useLayoutStore(state => state.workbenchContext)
-  const controllerRef = useRef<SSEController | null>(null)
+  const controllerRef = useRef<SSEController | EditingSSEController | null>(null)
   const handledCitationRequestIdRef = useRef<string | null>(null)
   const handledDocumentToolRequestIdRef = useRef<string | null>(null)
   const aiRunStatus = useWorkspaceStore(state => state.aiRunStatus)
   const activeSessionId = useWorkspaceStore(state => state.activeSessionId)
   const citationEnhancementRequest = useWorkspaceStore(state => state.citationEnhancementRequest)
   const documentToolRequest = useWorkspaceStore(state => state.documentToolRequest)
+  const documentBlocks = useWorkspaceStore(state => state.documentBlocks)
   const startAIRun = useWorkspaceStore(state => state.startAIRun)
   const startDocumentToolRun = useWorkspaceStore(state => state.startDocumentToolRun)
   const startCitationEnhancement = useWorkspaceStore(state => state.startCitationEnhancement)
+  const startEditingRun = useWorkspaceStore(state => state.startEditingRun)
+  const applyEditingStage = useWorkspaceStore(state => state.applyEditingStage)
+  const applyEditingPatch = useWorkspaceStore(state => state.applyEditingPatch)
+  const applyEditingGate = useWorkspaceStore(state => state.applyEditingGate)
+  const upsertEditingReferences = useWorkspaceStore(state => state.upsertEditingReferences)
+  const finishEditingRun = useWorkspaceStore(state => state.finishEditingRun)
+  const failEditingRun = useWorkspaceStore(state => state.failEditingRun)
   const setAIStage = useWorkspaceStore(state => state.setAIStage)
   const setActiveSessionId = useWorkspaceStore(state => state.setActiveSessionId)
   const appendGeneratedToken = useWorkspaceStore(state => state.appendGeneratedToken)
@@ -44,6 +56,68 @@ export function AIChatInput() {
   }, [])
 
   const isGenerating = ['retrieving', 'reasoning', 'generating'].includes(aiRunStatus)
+
+  const runEditingRequest = useCallback(async (
+    userRequest: string,
+    editingMode: EditingMode,
+    targetBlockId?: string | null,
+  ) => {
+    const trimmedRequest = userRequest.trim()
+    if (!trimmedRequest || isGenerating) return
+
+    const targetBlock = findTargetParagraph(documentBlocks, targetBlockId ?? selectedBlockId)
+    if (!targetBlock) {
+      failEditingRun('当前文档没有可编辑的正文段落')
+      return
+    }
+
+    controllerRef.current?.abort()
+    setAIStage('retrieving', '正在创建 DeepSeek V4 编辑任务')
+
+    try {
+      const job = await createEditingJob({
+        blocks: documentBlocks,
+        selected_block_ids: [targetBlock.id],
+        mode: editingMode,
+        objective: [
+          getContextInstruction(workbenchContext),
+          getModeInstruction(selectedMode),
+          `用户需求：${trimmedRequest}`,
+        ].filter(Boolean).join('\n\n'),
+        session_id: activeSessionId ?? undefined,
+      })
+
+      startEditingRun({ jobId: job.job_id, stages: job.stages, targetBlockId: targetBlock.id })
+      controllerRef.current = connectEditingJobSSE(job.job_id, {
+        onEditingStage: applyEditingStage,
+        onEditingPatch: applyEditingPatch,
+        onEditingGate: applyEditingGate,
+        onReferences: upsertEditingReferences,
+        onDone: () => {
+          finishEditingRun()
+          setInput('')
+        },
+        onError: failEditingRun,
+      })
+    } catch (error) {
+      failEditingRun(error instanceof Error ? error.message : '编辑任务创建失败')
+    }
+  }, [
+    activeSessionId,
+    applyEditingGate,
+    applyEditingPatch,
+    applyEditingStage,
+    documentBlocks,
+    failEditingRun,
+    finishEditingRun,
+    isGenerating,
+    selectedBlockId,
+    selectedMode,
+    setAIStage,
+    startEditingRun,
+    upsertEditingReferences,
+    workbenchContext,
+  ])
 
   const runAIRequest = useCallback((
     userRequest: string,
@@ -150,6 +224,10 @@ export function AIChatInput() {
 
   const handleSend = () => {
     if (!input.trim() || isGenerating) return
+    if (isEditingQuickMode(selectedMode)) {
+      void runEditingRequest(input.trim(), editingModeForQuickMode(selectedMode), selectedBlockId)
+      return
+    }
     runAIRequest(input.trim())
   }
 
@@ -195,7 +273,7 @@ export function AIChatInput() {
                 title={mode.disabledReason}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${buttonClassName}`}
                 onClick={isCitationEnhance
-                  ? () => runAIRequest('引用增强：请为当前段落补充学术依据和引用支撑。', 'citation_enhance', selectedBlockId ?? undefined)
+                  ? () => void runEditingRequest('引用增强：请为当前段落补充学术依据和引用支撑。', 'citation_enhance', selectedBlockId)
                   : () => setSelectedMode(mode.id)}
                 disabled={isDisabled}
                 aria-pressed={active}
@@ -263,10 +341,38 @@ function getDocumentToolRequest(tool: DocumentToolMode): string {
   }
 }
 
+function findTargetParagraph(blocks: DocumentBlock[], blockId?: string | null): DocumentBlock | null {
+  return (blockId ? blocks.find(block => block.id === blockId && block.type === 'paragraph') : null)
+    ?? blocks.find(block => block.type === 'paragraph')
+    ?? null
+}
+
+function isEditingQuickMode(mode: QuickModeId): boolean {
+  return mode === 'deep' || mode === 'academic' || mode === 'originality' || mode === 'citation'
+}
+
+function editingModeForQuickMode(mode: QuickModeId): EditingMode {
+  switch (mode) {
+    case 'citation':
+      return 'citation_enhance'
+    case 'academic':
+      return 'academic_enhance'
+    case 'originality':
+      return 'originality_humanize'
+    case 'deep':
+    default:
+      return 'deep_edit'
+  }
+}
+
 function getModeInstruction(mode: QuickModeId): string {
   switch (mode) {
     case 'deep':
-      return '模式：深度思考。请优先分析论证结构、概念边界和潜在反例。'
+      return '模式：深度编辑。请按诊断、润色、学术增强、结构、引文、门禁的流程生成可审阅补丁。'
+    case 'academic':
+      return '模式：学术增强。请提升学术语体、精确性、凝练度和术语一致性。'
+    case 'originality':
+      return '模式：降重。请降低表层重复和模板腔，但不得新增事实、引用或改变结论强弱。'
     case 'web':
       return '模式：联网搜索意图。当前后端未接入实时公网搜索，请明确标注需要用户核验的外部事实。'
     case 'graph':
@@ -274,6 +380,6 @@ function getModeInstruction(mode: QuickModeId): string {
     case 'norms':
       return '模式：学术规范。请依据学术写作、论文格式、引用规范和表达规范给出修改。'
     case 'citation':
-      return ''
+      return '模式：引用增强。请优先核验论点-证据对应关系，查不到证据必须标记 unresolved。'
   }
 }

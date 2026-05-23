@@ -1,0 +1,21 @@
+[
+  {"source_id":"NRM-APA-002","target_id":"NRM-APA-001","relation_type":"style_specific_to"},
+  {"source_id":"NRM-CIT-SCOPE-001","target_id":"NRM-CIT-CLAIM-001","relation_type":"instantiates"},
+  {"source_id":"NRM-CIT-CLAIM-001","target_id":"NRM-CIT-TRACE-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"NRM-GBT-001","target_id":"NRM-CIT-TRACE-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"STR-ABS-ORDER-001","target_id":"STR-ABS-001","relation_type":"instantiates"},
+  {"source_id":"STR-INTRO-CONTRIB-001","target_id":"STR-INTRO-GAP-001","relation_type":"prerequisite_of"},
+  {"source_id":"PARA-RESULT-PLACE-001","target_id":"STR-IMRAD-001","relation_type":"instantiates"},
+  {"source_id":"STR-EVAL-METRIC-001","target_id":"STR-RESULT-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"STR-LIMIT-001","target_id":"STR-CONC-001","relation_type":"prerequisite_of"},
+  {"source_id":"PARA-FUNC-ORDER-001","target_id":"PARA-BKG-001","relation_type":"suggests_revision"},
+  {"source_id":"PARA-METHOD-001","target_id":"STR-IMRAD-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"PARA-TOPIC-001","target_id":"PARA-RESULT-001","relation_type":"suggests_revision"},
+  {"source_id":"PARA-INTERPRET-001","target_id":"PARA-DISCUSS-001","relation_type":"suggests_revision"},
+  {"source_id":"PARA-LIMIT-001","target_id":"STR-LIMIT-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"ARG-REASONING-001","target_id":"ARG-CLAIM-EVID-001","relation_type":"instantiates"},
+  {"source_id":"EVI-SYNTH-001","target_id":"ARG-CLAIM-EVID-001","relation_type":"belongs_to_dimension"},
+  {"source_id":"EVI-QUOTE-001","target_id":"NRM-CIT-CLAIM-001","relation_type":"prerequisite_of"},
+  {"source_id":"STYLE-HEDGE-001","target_id":"STYLE-OBJECTIVE-001","relation_type":"contrasts_with"},
+  {"source_id":"STYLE-OBJECTIVE-001","target_id":"STR-LIMIT-001","relation_type":"prerequisite_of"}
+]

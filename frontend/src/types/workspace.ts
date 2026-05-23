@@ -88,6 +88,7 @@ export interface ReferenceItem {
   score?: number
   excerpt?: string
   url?: string
+  evidenceStatus?: 'resolved' | 'unresolved'
 }
 
 export interface WorkspaceGraphNode {
